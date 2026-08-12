@@ -67,6 +67,16 @@ export function parseMarker(body) {
   };
 }
 
+// Das Zitat, das renderComment als erstes Blockquote ausgibt. Der Zweitlauf braucht
+// den TEXT, nicht nur den Hash: die Frage lautet "steht dieses Zitat noch woertlich
+// irgendwo in der Datei", und ein Hash laesst sich nicht auf Teilstring pruefen.
+const EVIDENCE_RE = /^> `(.*)`\s*$/m;
+
+export function parseEvidence(body) {
+  const m = EVIDENCE_RE.exec(String(body ?? ''));
+  return m ? m[1] : null;
+}
+
 export function renderComment(cluster) {
   const icon = SEVERITY_ICON[cluster.severity] ?? '⚪';
   const tags = cluster.items

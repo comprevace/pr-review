@@ -220,8 +220,27 @@ async function cmdVerify(positional, flags) {
   });
 
   const threads = await fetchThreads({ repo, number, ghGraphql });
-  const haystacks = new Map(bundle.meta.files.map((f) => [f.path, bundle.fileText.get(f.path) ?? '']));
-  const delta = computeDelta({ clusters: first.report.posted.concat(first.report.anchorless), threads, haystacks });
+  // Dieselbe Konstruktion wie in aggregate(): Datei UND Patch. Befunde auf entfernten
+  // Zeilen leben nur im Patch -- nimmt man hier nur fileText, ist deren Zitat nie
+  // auffindbar, Bedingung (2) also unbedingt erfuellt, und die ganze LEFT-Klasse
+  // wuerde beim ersten Zweitlauf grundlos aufgeloest.
+  const haystacks = new Map(
+    bundle.meta.files.map((f) => [
+      f.path,
+      `${bundle.fileText.get(f.path) ?? ''}\n${bundle.patchText.get(f.path) ?? ''}`,
+    ]),
+  );
+  // Alle vier Toepfe zaehlen als "in dieser Runde gemeldet". posted und anchorless
+  // allein reichen nicht: ein Befund, der diesmal nur wegen der Kappung nicht
+  // gepostet wurde oder dessen Marker schon existiert, ist deshalb nicht behoben.
+  // Liesse man sie weg, griffe Bedingung (1) fuer sie nie.
+  const reportedNow = [
+    ...first.report.posted,
+    ...first.report.anchorless,
+    ...first.report.capped,
+    ...first.report.skippedExisting,
+  ];
+  const delta = computeDelta({ clusters: reportedNow, threads, haystacks });
 
   // Nur das Delta posten. Bereits gesetzte IDs sind ueber previous.json ohnehin
   // ausgeschlossen; hier kommt die Zweitlauf-Bilanz oben drauf.

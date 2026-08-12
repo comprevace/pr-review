@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { occurrenceIndex, findingId, evidenceHash, renderMarker, parseMarker, renderComment } from '../lib/comment.mjs';
+import { occurrenceIndex, findingId, evidenceHash, renderMarker, parseMarker, renderComment, parseEvidence } from '../lib/comment.mjs';
 
 // Vorkommen in Zeile 2 und Zeile 6. Zeile 4 liegt damit genau dazwischen und
 // prueft den Gleichstand wirklich -- bei Vorkommen in 2 und 5 waere Zeile 4 kein
@@ -116,6 +116,12 @@ test('renderComment bei einem Analysten ohne Eskalations- und Spannungshinweis',
   assert.match(body, /\*\*🟠 major\*\*/);
   assert.doesNotMatch(body, /erhöht/);
   assert.doesNotMatch(body, /Blickrichtungen/);
+});
+
+test('parseEvidence liest das Zitat aus einem gerenderten Kommentar', () => {
+  const body = renderComment(cluster);
+  assert.equal(parseEvidence(body), '@Disabled("flaky")');
+  assert.equal(parseEvidence('nur Text ohne Zitat'), null);
 });
 
 test('renderComment weist niedriges Vertrauen aus', () => {

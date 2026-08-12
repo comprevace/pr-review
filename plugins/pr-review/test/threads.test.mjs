@@ -45,9 +45,13 @@ const cluster = (id, evidence) => ({
   analysts: ['gi'],
   items: [{ analyst: 'gi', analystTitle: 'Gate', title: 't', problem: 'p', evidence, fix: 'f', confidence: 'hoch' }],
 });
+// evidence steht im Thread, weil der Zweitlauf das Zitat als TEXT braucht: die Frage
+// ist "steht das noch woertlich in der Datei", und ein Hash laesst sich nicht auf
+// Teilstring pruefen. fetchThreads liest es mit parseEvidence aus dem Kommentar.
 const thread = (id, markerId, evidence, isResolved = false) => ({
   id, isResolved,
   marker: { id: markerId, sev: 'major', ev: evidence === null ? null : evidenceHash(evidence), analysts: ['gi'] },
+  evidence,
 });
 
 test('erneut gemeldeter Befund bleibt offen und wird nicht doppelt gepostet', () => {
@@ -97,6 +101,29 @@ test('Marker ohne ev-Feld bleibt offen statt still aufgeloest zu werden', () => 
     threads: [thread('T1', 'aaaaaa', null)],
     haystacks: new Map([['src/A.java', 'irgendwas\n']]),
   });
+  assert.deepEqual(delta.resolvable, []);
+  assert.deepEqual(delta.stillOpen, ['aaaaaa']);
+});
+
+test('Evidenz als Fragment einer unveraenderten Zeile gilt als vorhanden', () => {
+  // Der wichtigste Fall dieser Datei: ein Analyst zitiert das schuldige Fragment,
+  // nicht die ganze Zeile. Verglich die Pruefung ganze Zeilen, waere das Zitat immer
+  // "verschwunden", Bedingung (2) unbedingt erfuellt und die Zwei-Bedingungen-Regel
+  // faktisch eine Ein-Bedingungs-Regel -- ein ausgefallener Analyst wuerde dann
+  // reichen, um einen echten Befund als behoben zu schliessen.
+  const zeile = '    if (user.isAdmin) { grantAll(); }';
+  const delta = computeDelta({
+    clusters: [],
+    threads: [thread('T1', 'aaaaaa', 'grantAll();')],
+    haystacks: new Map([['a.java', zeile]]),
+  });
+  assert.deepEqual(delta.resolvable, []);
+  assert.deepEqual(delta.stillOpen, ['aaaaaa']);
+});
+
+test('ein Kommentar ohne lesbares Zitat bleibt offen', () => {
+  const t1 = { ...thread('T1', 'aaaaaa', 'weg'), evidence: null };
+  const delta = computeDelta({ clusters: [], threads: [t1], haystacks: new Map([['a.java', 'irgendwas']]) });
   assert.deepEqual(delta.resolvable, []);
   assert.deepEqual(delta.stillOpen, ['aaaaaa']);
 });

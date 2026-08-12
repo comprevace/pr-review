@@ -1,4 +1,4 @@
-import { parseMarker, evidenceHash } from './comment.mjs';
+import { parseMarker, parseEvidence } from './comment.mjs';
 import { normalizeForSearch } from './findings.mjs';
 
 const THREADS_QUERY = `
@@ -30,10 +30,12 @@ export async function fetchThreads({ repo, number, ghGraphql }) {
     const data = await ghGraphql(THREADS_QUERY, vars);
     const page = data.repository.pullRequest.reviewThreads;
     for (const node of page.nodes) {
+      const body = node.comments?.nodes?.[0]?.body ?? '';
       threads.push({
         id: node.id,
         isResolved: node.isResolved,
-        marker: parseMarker(node.comments?.nodes?.[0]?.body ?? ''),
+        marker: parseMarker(body),
+        evidence: parseEvidence(body),
       });
     }
     if (!page.pageInfo.hasNextPage) break;
@@ -57,15 +59,23 @@ export function computeDelta({ clusters, threads, haystacks }) {
   const reportedIds = new Set(clusters.map((c) => c.id));
   const knownIds = new Set(threads.map((t) => t.marker?.id).filter(Boolean));
 
-  // Alle Evidenz-Hashes, die im aktuellen Bundle noch vorkommen. Der Marker traegt
-  // nur den Hash, also wird zeilenweise gehasht und verglichen.
-  const presentHashes = new Set();
+  // Zeilenweise Teilstringsuche, genau wie validateFinding und occurrenceIndex.
+  // Die Frage lautet "steht das Zitat noch woertlich irgendwo in dieser Datei",
+  // nicht "ist die ganze Zeile unveraendert": ein Analyst zitiert das schuldige
+  // Fragment, nicht die komplette Zeile. Ein Zeilenvergleich sagte deshalb fast
+  // immer "verschwunden" -- Bedingung (2) waere wertlos und die
+  // Zwei-Bedingungen-Regel faktisch eine Ein-Bedingungs-Regel.
+  const lines = [];
   for (const text of haystacks?.values() ?? []) {
     for (const line of String(text).split('\n')) {
       const normalized = normalizeForSearch(line);
-      if (normalized !== '') presentHashes.add(evidenceHash(normalized));
+      if (normalized !== '') lines.push(normalized);
     }
   }
+  const stillPresent = (evidence) => {
+    const needle = normalizeForSearch(evidence ?? '');
+    return needle !== '' && lines.some((line) => line.includes(needle));
+  };
 
   const fresh = clusters.filter((c) => !knownIds.has(c.id));
   const stillOpen = [];
@@ -78,14 +88,14 @@ export function computeDelta({ clusters, threads, haystacks }) {
       stillOpen.push(thread.marker.id);
       continue;
     }
-    // Ohne ev-Feld (Kommentar aus einer aelteren Version) fehlt Bedingung (2).
-    // Dann bleibt der Thread offen -- lieber ein offener Thread zu viel als ein
-    // stillschweigend aufgeloester Befund.
-    if (thread.marker.ev === null) {
+    // Ohne ev-Feld (Marker aus einer aelteren Version) oder ohne lesbares Zitat im
+    // Kommentartext fehlt Bedingung (2). Dann bleibt der Thread offen -- lieber
+    // einer zu viel als ein stillschweigend geschlossener echter Befund.
+    if (thread.marker.ev === null || !thread.evidence) {
       stillOpen.push(thread.marker.id);
       continue;
     }
-    if (presentHashes.has(thread.marker.ev)) {
+    if (stillPresent(thread.evidence)) {
       stillOpen.push(thread.marker.id);
       continue;
     }
