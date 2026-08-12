@@ -3,7 +3,10 @@ import { readFileSync, readdirSync, existsSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { ghApi, currentRepo } from './gh.mjs';
 import { buildBundle, bundlePathFor, loadBundle } from './bundle.mjs';
-import { loadAnalysts, selectAnalysts } from './registry.mjs';
+// Nur loadAnalysts: die Auswahl (selectAnalysts) passiert im Modell in Phase 1 der
+// SKILL, weil nur dort bekannt ist, welche Analysten tatsaechlich gestartet wurden.
+// Die CLI erfaehrt das Ergebnis ueber --skipped.
+import { loadAnalysts } from './registry.mjs';
 import { validateAll } from './findings.mjs';
 import { clusterFindings } from './cluster.mjs';
 import { parseMarker } from './comment.mjs';
@@ -201,7 +204,7 @@ try {
   }
   else if (command === 'post') await cmdPost(positional, flags);
   else {
-    fail('Unbekanntes Kommando. Verfuegbar: fetch, path');
+    fail('Unbekanntes Kommando. Verfuegbar: fetch, post, path');
   }
 } catch (err) {
   fail(err.message);
