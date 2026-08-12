@@ -21,8 +21,12 @@ Erlaubte Formen: `55` · `#55` · `55 --repo owner/name` · `55 --freeze` ·
 
 ## Phase 0 — Aufsetzen
 
-1. PR-Nummer aus `$ARGUMENTS` lesen, eine führende `#` entfernen. Fehlt sie, frage nach.
+1. PR-Nummer aus `$ARGUMENTS` lesen, eine führende `#` entfernen. Fehlt sie **und ist
+   `--bundle` nicht gesetzt**, frage nach.
 2. Ist `--bundle` gesetzt, überspringe Phase 1 und nutze das angegebene Verzeichnis.
+   **In diesem Fall brauchst du keine PR-Nummer** — Repo und Nummer stehen in der
+   `meta.json` des Bundles, und die CLI liest sie von dort. Frage also nicht nach einer
+   Nummer, wenn `--bundle` gesetzt ist.
 3. Sonst: `pr-review fetch <nr>` (mit `--repo`, falls angegeben).
 
 Die Ausgabe ist JSON mit `dir`, `files`, `changedLines`, `specLink`, `missingTests`,
@@ -58,8 +62,9 @@ Nenne dem Aufrufer in einer Zeile, welche Analysten laufen und welche nicht (mit
 Starte **alle** ausgewählten Analysten **in einer einzigen Nachricht** parallel, jeden
 über den Agent-Typ `pr-review:pr-review-analyst`. **Der Name ist namespaced** — Plugin-
 Agent-Typen heißen `<plugin>:<agent>`, und der unqualifizierte Name `pr-review-analyst`
-existiert nicht. Am laufenden Plugin verifiziert. Der Auftrag je Analyst besteht aus, in
-dieser Reihenfolge:
+existiert nicht. Am laufenden Plugin verifiziert. Der Auftrag je Analyst besteht aus
+genau drei Blöcken, in dieser Reihenfolge, jeweils durch eine Leerzeile getrennt und
+ohne zusätzliche Überschriften oder Vorwort von dir:
 
 1. dem vollständigen Inhalt von `<plugin>/analyst-contract.md`
 2. dem Body der Analystendatei
@@ -91,6 +96,18 @@ nennt und niemand das Review für vollständiger hält als es ist:
 ```
 pr-review post <nr> --skipped "java-spring:kein Pfad im Diff passt auf **/*.java"
 ```
+
+**Und gib jeden Analysten durch, der ausgefallen ist** — der einen Fehler zurückgegeben
+hat oder gar keine Datei geschrieben hat. Die CLI erkennt nur kaputtes JSON in einer
+vorhandenen Datei; ein Subagent, der abgestürzt ist, ohne etwas zu schreiben, ist für sie
+unsichtbar und würde in der Bilanz weder unter „gelaufen" noch unter „ausgefallen"
+auftauchen. Dann behauptet das gepostete Review mehr Vollständigkeit als es hatte:
+
+```
+pr-review post <nr> --failed "security-context:Subagent hat keine Datei geschrieben"
+```
+
+Beide Flags nehmen `name:grund` und mehrere Einträge durch Komma getrennt.
 
 Die CLI validiert die Befunde, verwirft Erfundenes, clustert Überlappungen, hebt die
 Severity bei Mehrfachbefunden, prüft jeden Zeilenanker gegen den Diff und postet

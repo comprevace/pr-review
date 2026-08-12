@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { readFileSync, readdirSync, existsSync, writeFileSync } from 'node:fs';
+import { readFileSync, readdirSync, existsSync, writeFileSync, realpathSync } from 'node:fs';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { ghApi, currentRepo, ghGraphql } from './gh.mjs';
@@ -77,11 +77,10 @@ function readAnalystFindings(bundleDir) {
   return { raw, failed };
 }
 
-// `--skipped "name:grund,name:grund"` — die Auswahl passiert in der SKILL (Phase 1),
-// die Bilanz entsteht hier. Ohne diesen Weg wuerde die Bilanz verschweigen, welche
-// Analysten gar nicht gestartet sind, und ein Leser hielte das Review fuer
-// vollstaendiger als es ist.
-export function parseSkipped(value) {
+// Gemeinsames Format fuer "--skipped" und "--failed": "name:grund,name:grund".
+// Fehlt der Doppelpunkt, gilt fallbackReason -- in der Praxis gibt der Aufrufer
+// aber immer einen Grund an.
+function parseNamedList(value, fallbackReason) {
   if (!value || value === true) return [];
   return String(value)
     .split(',')
@@ -90,9 +89,26 @@ export function parseSkipped(value) {
     .map((entry) => {
       const idx = entry.indexOf(':');
       return idx < 0
-        ? { name: entry, reason: 'nicht gestartet' }
+        ? { name: entry, reason: fallbackReason }
         : { name: entry.slice(0, idx).trim(), reason: entry.slice(idx + 1).trim() };
     });
+}
+
+// `--skipped "name:grund,name:grund"` — die Auswahl passiert in der SKILL (Phase 1),
+// die Bilanz entsteht hier. Ohne diesen Weg wuerde die Bilanz verschweigen, welche
+// Analysten gar nicht gestartet sind, und ein Leser hielte das Review fuer
+// vollstaendiger als es ist.
+export function parseSkipped(value) {
+  return parseNamedList(value, 'nicht gestartet');
+}
+
+// `--failed "name:grund,name:grund"` — die CLI erkennt selbst nur kaputtes JSON in
+// einer vorhandenen Datei. Ein Subagent, der abgestuerzt ist, ohne ueberhaupt eine
+// Datei zu schreiben, ist fuer readAnalystFindings unsichtbar und wuerde sonst in
+// der Bilanz weder unter "gelaufen" noch unter "ausgefallen" auftauchen -- das
+// gepostete Review behauptete dann mehr Vollstaendigkeit als es hatte.
+export function parseFailed(value) {
+  return parseNamedList(value, 'ausgefallen');
 }
 
 export function aggregate({ bundle, analysts, analystFindings, failed, skipped = [], cap, pluginVersionString }) {
@@ -142,11 +158,34 @@ export function aggregate({ bundle, analysts, analystFindings, failed, skipped =
   });
 }
 
-async function cmdPost(positional, flags) {
+// `--bundle` liefert absichtlich keine PR-Nummer -- der in der SKILL dokumentierte
+// Tuning-Modus (`--bundle <pfad> --only <analyst>`) will genau das eingefrorene
+// Bundle verwenden, ohne Repo oder Nummer erneut anzugeben. Repo und Nummer stehen
+// dann bereits in dessen meta.json. Ohne diese Fallunterscheidung verlangten
+// cmdPost/cmdVerify immer eine Positional-Nummer und einen erreichbaren `gh` --
+// und der Tuning-Modus konnte gar nicht laufen.
+async function resolveTarget(positional, flags, command) {
+  if (flags.bundle) {
+    const metaPath = join(flags.bundle, 'meta.json');
+    if (!existsSync(metaPath)) fail(`Kein Bundle unter ${flags.bundle} (meta.json fehlt).`);
+    const meta = JSON.parse(readFileSync(metaPath, 'utf8'));
+    return { repo: meta.repo, number: meta.number, bundleDir: flags.bundle };
+  }
   const number = Number(String(positional[0] ?? '').replace(/^#/, ''));
-  if (!Number.isInteger(number) || number <= 0) fail('Bitte eine PR-Nummer angeben, z. B. pr-review post 55');
-  const repo = flags.repo ?? (await currentRepo());
-  const bundleDir = flags.bundle ?? bundlePathFor(repo, number);
+  if (!Number.isInteger(number) || number <= 0) {
+    fail(`Bitte eine PR-Nummer angeben, z. B. pr-review ${command} 55, oder --bundle <pfad> ohne Nummer.`);
+  }
+  let repo = flags.repo;
+  if (!repo) {
+    try { repo = await currentRepo(); } catch {
+      fail('Repo nicht ermittelbar. Aus einem Repo-Verzeichnis starten oder --repo owner/name angeben.');
+    }
+  }
+  return { repo, number, bundleDir: bundlePathFor(repo, number) };
+}
+
+async function cmdPost(positional, flags) {
+  const { repo, number, bundleDir } = await resolveTarget(positional, flags, 'post');
   if (!existsSync(join(bundleDir, 'meta.json'))) {
     fail(`Kein Bundle unter ${bundleDir}. Erst "pr-review fetch ${number}" laufen lassen.`);
   }
@@ -157,7 +196,8 @@ async function cmdPost(positional, flags) {
     join(process.cwd(), '.claude', 'pr-review-analysts'),
   ];
   const analysts = loadAnalysts(analystRoots);
-  const { raw, failed } = readAnalystFindings(bundleDir);
+  const { raw, failed: jsonFailed } = readAnalystFindings(bundleDir);
+  const failed = [...jsonFailed, ...parseFailed(flags.failed)];
   if (raw.size === 0 && failed.length === 0) {
     fail('Keine Analysten-Findings im Bundle. Die Subagenten haben nichts nach findings/ geschrieben.');
   }
@@ -196,10 +236,7 @@ async function cmdPost(positional, flags) {
 }
 
 async function cmdVerify(positional, flags) {
-  const number = Number(String(positional[0] ?? '').replace(/^#/, ''));
-  if (!Number.isInteger(number) || number <= 0) fail('Bitte eine PR-Nummer angeben, z. B. pr-review verify 55');
-  const repo = flags.repo ?? (await currentRepo());
-  const bundleDir = flags.bundle ?? bundlePathFor(repo, number);
+  const { repo, number, bundleDir } = await resolveTarget(positional, flags, 'verify');
   if (!existsSync(join(bundleDir, 'meta.json'))) {
     fail(`Kein Bundle unter ${bundleDir}. Erst "pr-review fetch ${number}" auf dem NEUEN Stand laufen lassen.`);
   }
@@ -210,7 +247,8 @@ async function cmdVerify(positional, flags) {
     join(process.cwd(), '.claude', 'pr-review-analysts'),
   ];
   const analysts = loadAnalysts(analystRoots);
-  const { raw, failed } = readAnalystFindings(bundleDir);
+  const { raw, failed: jsonFailed } = readAnalystFindings(bundleDir);
+  const failed = [...jsonFailed, ...parseFailed(flags.failed)];
   if (raw.size === 0) fail('Keine Analysten-Findings im Bundle. Kein Zweitlauf moeglich.');
 
   const skipped = parseSkipped(flags.skipped);
@@ -284,13 +322,14 @@ async function cmdVerify(positional, flags) {
   process.stdout.write(`${JSON.stringify({ ...delta.counts, posted: result.comments.length, reviewId: review?.id }, null, 2)}\n`);
 }
 
-// Der Dispatcher laeuft NUR, wenn diese Datei der Einstiegspunkt ist. Ohne diese
-// Bedingung fuehrt jeder `import` aus cli.mjs den Dispatcher mit aus -- und da ein
-// Testprozess kein Subkommando in process.argv hat, faellt er in den else-Zweig,
-// ruft fail() und beendet den Testlauf, bevor ein einziger Test startet. Die Datei
-// ist Modul UND Programm; beim Importieren darf nur das Modul passieren.
+// realpathSync ist hier zwingend: Node loest import.meta.url fuer das Hauptmodul
+// ueber den echten Pfad auf, process.argv[1] aber nicht. Liegt das Plugin unter einem
+// Symlink -- der Normalfall bei einer Plugin-Installation --, weichen die beiden URLs
+// ab, isEntryPoint wird false, und die CLI tut still gar nichts: keine Ausgabe,
+// Exit 0. Das ist schlimmer als der Fehler, den dieser Guard behebt.
 const isEntryPoint =
-  process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.argv[1]).href;
+  process.argv[1] !== undefined
+  && import.meta.url === pathToFileURL(realpathSync(process.argv[1])).href;
 
 if (isEntryPoint) {
   const { positional, flags } = parseArgs(process.argv.slice(2));
