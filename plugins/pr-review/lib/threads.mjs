@@ -1,4 +1,4 @@
-import { parseMarker, parseEvidence } from './comment.mjs';
+import { parseMarker, parseEvidence, evidenceHash } from './comment.mjs';
 import { normalizeForSearch } from './findings.mjs';
 
 const THREADS_QUERY = `
@@ -92,6 +92,17 @@ export function computeDelta({ clusters, threads, haystacks }) {
     // Kommentartext fehlt Bedingung (2). Dann bleibt der Thread offen -- lieber
     // einer zu viel als ein stillschweigend geschlossener echter Befund.
     if (thread.marker.ev === null || !thread.evidence) {
+      stillOpen.push(thread.marker.id);
+      continue;
+    }
+    // Der Hash im Marker beglaubigt den gelesenen Zitattext. parseEvidence nimmt das
+    // ERSTE Blockquote, und darueber kann etwas stehen, das wie ein Zitat aussieht --
+    // ein Fliesstext des Analysten, eine menschliche Bearbeitung des Kommentars.
+    // Passt der Hash nicht, ist der gelesene Text nicht der, aus dem der Marker
+    // entstand: dann fehlt Bedingung (2), und der Thread bleibt offen, statt auf dem
+    // falschen Text zu entscheiden. Das ist derselbe Grund, aus dem MARKER_RE am
+    // Textende verankert ist -- und damit hat ev eine zweite, echte Aufgabe.
+    if (evidenceHash(thread.evidence) !== thread.marker.ev) {
       stillOpen.push(thread.marker.id);
       continue;
     }

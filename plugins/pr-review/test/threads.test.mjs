@@ -128,6 +128,16 @@ test('ein Kommentar ohne lesbares Zitat bleibt offen', () => {
   assert.deepEqual(delta.stillOpen, ['aaaaaa']);
 });
 
+test('ein untergeschobenes Zitat wird am Marker-Hash erkannt', () => {
+  // parseEvidence liest das erste Blockquote. Steht darueber etwas, das wie ein Zitat
+  // aussieht, wuerde ohne Beglaubigung auf dem falschen Text entschieden -- und ein
+  // Befund, der noch im Code steht, als behoben geschlossen.
+  const t1 = { ...thread('T1', 'aaaaaa', 'echtes-zitat'), evidence: 'fremdes-zitat' };
+  const delta = computeDelta({ clusters: [], threads: [t1], haystacks: new Map([['a.java', 'nichts davon']]) });
+  assert.deepEqual(delta.resolvable, []);
+  assert.deepEqual(delta.stillOpen, ['aaaaaa']);
+});
+
 test('neuer Befund ohne bestehenden Thread ist fresh', () => {
   const delta = computeDelta({
     clusters: [cluster('cccccc', 'neu')],
