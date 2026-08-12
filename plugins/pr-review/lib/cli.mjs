@@ -169,6 +169,13 @@ async function resolveTarget(positional, flags, command) {
     const metaPath = join(flags.bundle, 'meta.json');
     if (!existsSync(metaPath)) fail(`Kein Bundle unter ${flags.bundle} (meta.json fehlt).`);
     const meta = JSON.parse(readFileSync(metaPath, 'utf8'));
+    // meta.repo gewinnt, denn aus diesem Repo stammt der Bundle-Inhalt. Ein
+    // abweichendes --repo waere ein Versehen mit teuren Folgen: Kommentare, die aus
+    // Repo A abgeleitet sind, landeten auf Repo B. Also nicht still verwerfen,
+    // sondern abbrechen -- nichts in diesem Werkzeug scheitert lautlos.
+    if (flags.repo && flags.repo !== meta.repo) {
+      fail(`--repo ${flags.repo} widerspricht dem Bundle (${meta.repo}). Bundle-Inhalt stammt aus ${meta.repo}; lass --repo weg oder nimm das passende Bundle.`);
+    }
     return { repo: meta.repo, number: meta.number, bundleDir: flags.bundle };
   }
   const number = Number(String(positional[0] ?? '').replace(/^#/, ''));
