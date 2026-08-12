@@ -72,6 +72,21 @@ test('fehlende Pflichtfelder und unbekannte Datei werden verworfen', () => {
   assert.match(validateFinding({ ...good({ line: 0 }), analyst: 'sec' }, ctx()).reason, /line/);
 });
 
+test('Evidenz darf nicht ueber eine Zeilengrenze hinweg matchen', () => {
+  const c = ctx();
+  c.haystacks.set('src/A.java', 'int x = 1;\nint y = 2;\n');
+  const r = validateFinding({ ...good({ evidence: 'int x = 1; int y = 2;' }), analyst: 'sec' }, c);
+  assert.equal(r.ok, false);
+  assert.equal(r.reason, 'Evidenz im Bundle nicht auffindbar');
+});
+
+test('validateAll faellt bei fehlendem Titel auf einen Platzhalter zurueck', () => {
+  const raw = new Map([['sec', [{ ...good({ evidence: 'nope' }), title: undefined }]]]);
+  const { accepted, rejected } = validateAll(raw, ctx());
+  assert.equal(accepted.length, 0);
+  assert.equal(rejected[0].title, '(ohne Titel)');
+});
+
 test('validateAll trennt Angenommene von Verworfenen', () => {
   const raw = new Map([
     ['sec', [good(), good({ evidence: 'nope', title: 'Weg' })]],

@@ -53,9 +53,18 @@ export function validateFinding(raw, ctx) {
   if (/\r?\n/.test(raw.evidence)) return reject('Evidenz muss einzeilig sein');
   if (raw.evidence.length > MAX_EVIDENCE) return reject(`Evidenz laenger als ${MAX_EVIDENCE} Zeichen`);
 
+  // Zeilenweise suchen, nicht im normalisierten Gesamttext. Kollabiert man den
+  // ganzen Haystack auf eine Zeile, kann eine einzeilige Evidenz ueber eine
+  // Zeilengrenze hinweg "gefunden" werden: aus dem Ende von Zeile N und dem Anfang
+  // von Zeile N+1 wird stillschweigend ein Treffer, und "woertlich im Bundle"
+  // bedeutet dann nur noch "woertlich, nachdem wir die Zeilengrenzen weggeworfen
+  // haben". Das ist ausserdem genau die Suche, die Task 6 fuer occurrenceIndex
+  // verwendet -- beide muessen uebereinstimmen, sonst validiert der eine einen
+  // Befund, den der andere nicht wiederfindet.
   const needle = normalizeForSearch(raw.evidence);
-  const haystack = ctx.haystacks.get(raw.file) ?? '';
-  if (!normalizeForSearch(haystack).includes(needle)) return reject('Evidenz im Bundle nicht auffindbar');
+  const haystack = String(ctx.haystacks.get(raw.file) ?? '');
+  const evidenceFound = haystack.split('\n').some((line) => normalizeForSearch(line).includes(needle));
+  if (!evidenceFound) return reject('Evidenz im Bundle nicht auffindbar');
 
   const severity = clampSeverity(raw.severity, analyst.severity_max);
   if (confidence === 'niedrig' && severityRank(severity) <= severityRank('minor')) {
