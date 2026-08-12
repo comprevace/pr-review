@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { readFileSync, readdirSync, existsSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { ghApi, currentRepo } from './gh.mjs';
+import { ghApi, currentRepo, ghGraphql } from './gh.mjs';
 import { buildBundle, bundlePathFor, loadBundle } from './bundle.mjs';
 // Nur loadAnalysts: die Auswahl (selectAnalysts) passiert im Modell in Phase 1 der
 // SKILL, weil nur dort bekannt ist, welche Analysten tatsaechlich gestartet wurden.
@@ -12,6 +12,7 @@ import { clusterFindings } from './cluster.mjs';
 import { parseMarker } from './comment.mjs';
 import { buildPayload, DEFAULT_CAP } from './payload.mjs';
 import { renderSummary } from './summary.mjs';
+import { fetchThreads, resolveThread, computeDelta } from './threads.mjs';
 
 const PLUGIN_ROOT = join(import.meta.dirname, '..');
 
@@ -193,6 +194,76 @@ async function cmdPost(positional, flags) {
   process.stdout.write(`${JSON.stringify({ ...stats, reviewId: review?.id, url: review?.html_url }, null, 2)}\n`);
 }
 
+async function cmdVerify(positional, flags) {
+  const number = Number(String(positional[0] ?? '').replace(/^#/, ''));
+  if (!Number.isInteger(number) || number <= 0) fail('Bitte eine PR-Nummer angeben, z. B. pr-review verify 55');
+  const repo = flags.repo ?? (await currentRepo());
+  const bundleDir = flags.bundle ?? bundlePathFor(repo, number);
+  if (!existsSync(join(bundleDir, 'meta.json'))) {
+    fail(`Kein Bundle unter ${bundleDir}. Erst "pr-review fetch ${number}" auf dem NEUEN Stand laufen lassen.`);
+  }
+  const bundle = loadBundle(bundleDir);
+
+  const analystRoots = [
+    flags['analysts-dir'] ?? join(PLUGIN_ROOT, 'analysts'),
+    join(process.cwd(), '.claude', 'pr-review-analysts'),
+  ];
+  const analysts = loadAnalysts(analystRoots);
+  const { raw, failed } = readAnalystFindings(bundleDir);
+  if (raw.size === 0) fail('Keine Analysten-Findings im Bundle. Kein Zweitlauf moeglich.');
+
+  const skipped = parseSkipped(flags.skipped);
+  const first = aggregate({
+    bundle, analysts, analystFindings: raw, failed, skipped,
+    cap: flags.cap ? Number(flags.cap) : DEFAULT_CAP,
+    pluginVersionString: pluginVersion(),
+  });
+
+  const threads = await fetchThreads({ repo, number, ghGraphql });
+  const haystacks = new Map(bundle.meta.files.map((f) => [f.path, bundle.fileText.get(f.path) ?? '']));
+  const delta = computeDelta({ clusters: first.report.posted.concat(first.report.anchorless), threads, haystacks });
+
+  // Nur das Delta posten. Bereits gesetzte IDs sind ueber previous.json ohnehin
+  // ausgeschlossen; hier kommt die Zweitlauf-Bilanz oben drauf.
+  const commentable = new Map(bundle.meta.files.map((f) => [f.path, f.commentable]));
+  const counts = { blocker: 0, major: 0, minor: 0, info: 0 };
+  for (const cluster of delta.fresh) counts[cluster.severity]++;
+
+  const result = buildPayload(delta.fresh, {
+    commentable,
+    previousIds: new Set(threads.map((t) => t.marker?.id).filter(Boolean)),
+    cap: flags.cap ? Number(flags.cap) : DEFAULT_CAP,
+    renderBody: (report) =>
+      renderSummary({
+        pluginVersion: pluginVersion(),
+        analystsRun: [...raw.keys()],
+        analystsSkipped: skipped,
+        analystsFailed: failed,
+        counts,
+        rejected: [],
+        anchorless: report.anchorless,
+        capped: report.capped,
+        skippedExisting: report.skippedExisting,
+        verify: { resolved: delta.counts.resolved, stillOpen: delta.counts.stillOpen, fresh: delta.counts.fresh },
+        meta: bundle.meta,
+      }),
+  });
+
+  const payload = { body: result.body, event: result.event, comments: result.comments };
+  writeFileSync(join(bundleDir, 'payload.json'), JSON.stringify(payload, null, 2));
+
+  if (flags['dry-run']) {
+    process.stdout.write(`${JSON.stringify({ ...delta.counts, dryRun: true, wouldPost: result.comments.length }, null, 2)}\n`);
+    return;
+  }
+
+  for (const threadId of delta.resolvable) {
+    await resolveThread({ threadId, ghGraphql });
+  }
+  const review = await ghApi(`/repos/${repo}/pulls/${number}/reviews`, { method: 'POST', body: payload });
+  process.stdout.write(`${JSON.stringify({ ...delta.counts, posted: result.comments.length, reviewId: review?.id }, null, 2)}\n`);
+}
+
 const { positional, flags } = parseArgs(process.argv.slice(2));
 const command = positional.shift();
 
@@ -203,8 +274,9 @@ try {
     process.stdout.write(`${bundlePathFor(repo, Number(positional[0]))}\n`);
   }
   else if (command === 'post') await cmdPost(positional, flags);
+  else if (command === 'verify') await cmdVerify(positional, flags);
   else {
-    fail('Unbekanntes Kommando. Verfuegbar: fetch, post, path');
+    fail('Unbekanntes Kommando. Verfuegbar: fetch, post, verify, path');
   }
 } catch (err) {
   fail(err.message);
