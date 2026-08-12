@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, readFileSync, existsSync } from 'node:fs';
+import { mkdtempSync, readFileSync, existsSync, writeFileSync, readdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { bundlePathFor, testCandidates, resolveSpecPath, buildBundle, loadBundle } from '../lib/bundle.mjs';
@@ -86,9 +86,8 @@ test('buildBundle schreibt meta, Dateien und commentable-Map', async () => {
   assert.ok(existsSync(join(dir, 'diff.patch')));
 });
 
-test('loadBundle liest das geschriebene Bundle zurueck', async () => {
-  const dir = join(mkdtempSync(join(tmpdir(), 'prr-')), 'bundle');
-  const fakeApi = async (endpoint) => {
+function bundle2Api() {
+  return async (endpoint) => {
     if (endpoint === '/repos/example/demo/pulls/2') {
       return { number: 2, title: 't', body: '', user: { login: 'a' }, labels: [],
         base: { sha: 'b' }, head: { sha: 'h', ref: 'x' } };
@@ -102,11 +101,29 @@ test('loadBundle liest das geschriebene Bundle zurueck', async () => {
     }
     const err = new Error('Not Found'); err.status = 404; throw err;
   };
-  await buildBundle({ repo: 'example/demo', number: 2, ghApi: fakeApi, bundleDir: dir });
+}
+
+test('loadBundle liest das geschriebene Bundle zurueck', async () => {
+  const dir = join(mkdtempSync(join(tmpdir(), 'prr-')), 'bundle');
+  await buildBundle({ repo: 'example/demo', number: 2, ghApi: bundle2Api(), bundleDir: dir });
 
   const b = loadBundle(dir);
   assert.equal(b.meta.number, 2);
   assert.equal(b.fileText.get('a.txt'), 'keep\nadd\n');
   assert.ok(b.patchText.get('a.txt').includes('+add'));
   assert.deepEqual(b.previous, []);
+});
+
+test('ein zweites fetch leert findings/ und laesst keine Datei des Vorlaufs stehen', async () => {
+  // Der Zweitlauf holt in DASSELBE Verzeichnis. Blieb die JSON-Datei des ersten Laufs
+  // liegen, erschien ein diesmal abgestuerzter Analyst mit ihr als "gelaufen", und seine
+  // veralteten Befunde erfuellten Bedingung (1): der Thread blieb offen, obwohl der
+  // Befund behoben war -- der Ausfall waere unsichtbar UND wirksam gewesen.
+  const dir = join(mkdtempSync(join(tmpdir(), 'prr-refetch-')), 'bundle');
+  await buildBundle({ repo: 'example/demo', number: 2, ghApi: bundle2Api(), bundleDir: dir });
+  writeFileSync(join(dir, 'findings/gate-integrity.json'), '[{"stale": true}]');
+
+  await buildBundle({ repo: 'example/demo', number: 2, ghApi: bundle2Api(), bundleDir: dir });
+  assert.ok(existsSync(join(dir, 'findings')), 'findings/ muss danach existieren');
+  assert.deepEqual(readdirSync(join(dir, 'findings')), []);
 });

@@ -15,6 +15,22 @@ function spanOf(finding) {
   return { from: finding.start_line ?? finding.line, to: finding.line };
 }
 
+// Rangfolge innerhalb eines Clusters: schwerste Severity zuerst; bei Gleichstand der
+// alphabetisch erste Analyst, dann der Evidenztext, dann die Zeile. Die letzten zwei
+// Kriterien sind nicht Kosmetik: meldet EIN Analyst zwei gleich schwere Befunde in
+// derselben Zeile, sind Severity und Analystenname gleich, und ohne inhaltlichen
+// Tiebreak entscheidet die Eingabereihenfolge, welches Item vorne steht. Dieselbe
+// Fundstelle bekaeme dann je Lauf eine andere ID -- und der Zweitlauf hielte jeden
+// Befund fuer neu, womit die ganze Idempotenz hinfaellig waere.
+function byPrimacy(a, b) {
+  return (
+    severityRank(b.severity) - severityRank(a.severity) ||
+    a.analyst.localeCompare(b.analyst) ||
+    a.evidence.localeCompare(b.evidence) ||
+    a.line - b.line
+  );
+}
+
 function dedupeItems(items) {
   // Zwei Analysten koennen dieselbe Aussage machen. Dann bleibt ein Eintrag
   // stehen, aber beide Tags -- die Mehrfachbetroffenheit ist das Signal.
@@ -29,7 +45,18 @@ function dedupeItems(items) {
 function finalize(acc, file, side, haystacks, analystTitles) {
   const withTitles = acc.raw.map((f) => ({ ...f, analystTitle: analystTitles?.get(f.analyst) ?? f.analyst }));
   const analysts = [...new Set(withTitles.map((f) => f.analyst))];
-  const items = dedupeItems(withTitles);
+
+  // Sortieren VOR dem Entdoppeln, damit items[0] das primaere Item ist -- und das ist
+  // eine tragende Invariante, kein Ordnungssinn: die Cluster-ID hasht die Evidenz des
+  // primaeren Items, renderComment nimmt aber items[0] fuer den ev-Hash im Marker und
+  // fuer das erste Blockquote. Stehen die beiden auseinander, beschreiben id und ev
+  // zwei VERSCHIEDENE Befunde. Der Zweitlauf prueft Bedingung (1) dann an der ID des
+  // einen und Bedingung (2) am Zitat des anderen: wird das leichtere Item behoben und
+  // faellt der Analyst des schwereren aus, gilt der Thread als behoben, obwohl der
+  // schwerere Befund unveraendert in der Datei steht. dedupeItems behaelt je Schluessel
+  // den ERSTEN Eintrag; nur deshalb ueberlebt das primaere Item auch dann als items[0],
+  // wenn ein anderer Analyst denselben Auftrag formuliert hat.
+  const items = dedupeItems([...withTitles].sort(byPrimacy));
 
   const baseSeverity = withTitles.reduce(
     (max, f) => (severityRank(f.severity) > severityRank(max) ? f.severity : max),
@@ -38,20 +65,8 @@ function finalize(acc, file, side, haystacks, analystTitles) {
   const multiple = analysts.length >= 2;
   const severity = multiple ? raiseSeverity(baseSeverity) : baseSeverity;
 
-  // Die ID haengt am schwersten Item; bei Gleichstand am alphabetisch ersten
-  // Analysten, dann am Evidenztext, dann an der Zeile. Die letzten zwei Kriterien
-  // sind nicht Kosmetik: meldet EIN Analyst zwei gleich schwere Befunde in derselben
-  // Zeile, sind Severity und Analystenname gleich, und ohne inhaltlichen Tiebreak
-  // entscheidet die Eingabereihenfolge, welches Item die ID stellt. Dieselbe
-  // Fundstelle bekaeme dann je Lauf eine andere ID -- und der Zweitlauf hielte
-  // jeden Befund fuer neu, womit die ganze Idempotenz hinfaellig waere.
-  const primary = [...withTitles].sort(
-    (a, b) =>
-      severityRank(b.severity) - severityRank(a.severity) ||
-      a.analyst.localeCompare(b.analyst) ||
-      a.evidence.localeCompare(b.evidence) ||
-      a.line - b.line,
-  )[0];
+  // Die ID haengt am primaeren Item -- und das ist per Konstruktion items[0].
+  const primary = items[0];
   const haystack = haystacks?.get(file) ?? '';
   const id = findingId(file, primary.evidence, occurrenceIndex(haystack, primary.evidence, primary.line));
 

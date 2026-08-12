@@ -66,6 +66,22 @@ test('niedriges Vertrauen bei minor wird verworfen, bei blocker behalten', () =>
   assert.equal(kept.finding.confidence, 'niedrig');
 });
 
+test('die Vertrauensregel prueft die gemeldete Severity, nicht die gedeckelte', () => {
+  // "cx" hat severity_max: minor -- eine legitime repo-lokale Entscheidung. Wurde die
+  // Regel an der GEDECKELTEN Severity geprueft, war "niedrig" fuer diesen Analysten auf
+  // jeder Stufe unbenutzbar: alles landet auf minor, also fiel alles durch. Ein
+  // schwerwiegender Verdacht ist auch unsicher mitteilungswuerdig; der Deckel begrenzt
+  // die Lautstaerke, er entscheidet nicht ueber die Existenz.
+  const r = validateFinding({ ...good({ severity: 'major', confidence: 'niedrig' }), analyst: 'cx' }, ctx());
+  assert.equal(r.ok, true);
+  assert.equal(r.finding.severity, 'minor'); // Deckel greift weiterhin
+  assert.equal(r.finding.confidence, 'niedrig');
+  // Als minor gemeldet bleibt es verworfen, auch bei diesem Analysten.
+  const low = validateFinding({ ...good({ severity: 'minor', confidence: 'niedrig' }), analyst: 'cx' }, ctx());
+  assert.equal(low.ok, false);
+  assert.equal(low.reason, 'niedriges Vertrauen bei geringer Severity');
+});
+
 test('fehlende Pflichtfelder und unbekannte Datei werden verworfen', () => {
   assert.match(validateFinding({ ...good({ fix: '' }), analyst: 'sec' }, ctx()).reason, /fix/);
   assert.match(validateFinding({ ...good({ file: 'src/Weg.java' }), analyst: 'sec' }, ctx()).reason, /nicht im Diff/);

@@ -40,6 +40,20 @@ test('der Kontrakt legt Schema, Evidenzpflicht und Severity fest', () => {
   }
 });
 
+test('der Kontrakt verspricht keine Evidenz, die der Validator verwirft', () => {
+  // Der Kontrakt fuehrte tests/, spec.md und conventions.md als Bundle-Inhalt auf, ohne
+  // zu sagen, dass die Evidenz nur aus einer GEAENDERTEN Datei stammen darf. gate-integrity
+  // soll entfernte Assertions jagen und bekommt tests/ in die Hand: ein woertlich richtiges
+  // Zitat aus einer unveraenderten Testdatei wurde als "Evidenz im Bundle nicht auffindbar"
+  // verworfen -- der Kontrakt selbst produzierte den Ausschuss.
+  const contract = readFileSync(join(ROOT, 'analyst-contract.md'), 'utf8');
+  assert.match(contract, /geänderten Dateien aus `meta\.json`/);
+  assert.match(contract, /files\/<file>/);
+  assert.match(contract, /patches\/<file>\.patch/);
+  assert.match(contract, /\*\*`tests\/`, `spec\.md` und `conventions\.md` sind nicht zitierbar\.\*\*/);
+  assert.match(contract, /Verstehen/);
+});
+
 test('der Agent-Typ hat kein Bash und kein Netz', () => {
   const { meta } = parseFrontmatterLoose(readFileSync(join(ROOT, 'agents/pr-review-analyst.md'), 'utf8'));
   const tools = String(meta.tools);

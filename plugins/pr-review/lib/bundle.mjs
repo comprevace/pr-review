@@ -1,4 +1,4 @@
-import { mkdirSync, writeFileSync, readFileSync, existsSync, readdirSync, statSync } from 'node:fs';
+import { mkdirSync, writeFileSync, readFileSync, existsSync, readdirSync, statSync, rmSync } from 'node:fs';
 import { join, dirname, basename, extname } from 'node:path';
 import { homedir } from 'node:os';
 import { commentableRanges } from './diff.mjs';
@@ -157,6 +157,14 @@ export async function buildBundle({ repo, number, ghApi, bundleDir }) {
   };
   writeUnder(dir, 'meta.json', JSON.stringify(meta, null, 2));
   writeUnder(dir, 'diff.patch', patchParts.join('\n'));
+  // findings/ leeren, nicht nur anlegen: der Zweitlauf holt in DASSELBE
+  // Bundle-Verzeichnis, und sonst ueberlebt hier die JSON-Datei des ersten Laufs. Ein
+  // Analyst, der diesmal abgestuerzt ist, erschiene mit ihr in der Bilanz als
+  // "gelaufen", und seine veralteten Befunde erfuellten Bedingung (1) -- der Thread
+  // bliebe offen, obwohl der Befund behoben ist. Genau die Umkehrung der Absicht: der
+  // Ausfall waere unsichtbar UND wirksam. Erst nach dem erfolgreichen Holen, damit ein
+  // abgebrochenes fetch das alte, in sich stimmige Bundle nicht halb ausraeumt.
+  rmSync(join(dir, 'findings'), { recursive: true, force: true });
   mkdirSync(join(dir, 'findings'), { recursive: true });
 
   return { dir, files: files.length, changedLines, specLink: meta.spec_link, missingTests, patchMissing };

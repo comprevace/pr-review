@@ -111,6 +111,29 @@ export function parseFailed(value) {
   return parseNamedList(value, 'ausgefallen');
 }
 
+// Die letzte Luecke im Grundsatz "nichts scheitert lautlos": --failed ist der
+// deklarative Weg, aber er haengt daran, dass das orchestrierende Modell daran denkt.
+// Ein Analyst, der abstuerzt, ohne eine Datei zu schreiben, ist fuer
+// readAnalystFindings unsichtbar -- und wenn ihn niemand meldet, taucht er in der
+// Bilanz weder unter "gelaufen" noch unter "ausgefallen" auf. Das gepostete Review
+// behauptet dann mehr Vollstaendigkeit, als es hatte. Die CLI kennt alle
+// Analystennamen aus loadAnalysts und kann selbst nachsehen: wer weder eine Datei
+// geschrieben hat noch als nicht gestartet oder ausgefallen gemeldet ist, kommt hier in
+// die Ausfallliste. Kein Abbruch -- nur benannt.
+export function undeclaredAnalysts({ analysts, analystFindings, skipped, failed }) {
+  const accounted = new Set([
+    ...analystFindings.keys(),
+    ...skipped.map((s) => s.name),
+    ...failed.map((f) => f.name),
+  ]);
+  return analysts
+    .filter((a) => !accounted.has(a.name))
+    .map((a) => ({
+      name: a.name,
+      reason: 'keine Findings-Datei geschrieben und weder als nicht gestartet noch als ausgefallen gemeldet',
+    }));
+}
+
 export function aggregate({ bundle, analysts, analystFindings, failed, skipped = [], cap, pluginVersionString }) {
   const analystMap = new Map(analysts.map((a) => [a.name, a]));
   const analystTitles = new Map(analysts.map((a) => [a.name, a.title]));
@@ -137,25 +160,31 @@ export function aggregate({ bundle, analysts, analystFindings, failed, skipped =
   const counts = { blocker: 0, major: 0, minor: 0, info: 0 };
   for (const cluster of clusters) counts[cluster.severity]++;
 
-  return buildPayload(clusters, {
-    commentable,
-    previousIds,
-    cap,
-    renderBody: (report) =>
-      renderSummary({
-        pluginVersion: pluginVersionString,
-        analystsRun: [...analystFindings.keys()],
-        analystsSkipped: skipped,
-        analystsFailed: failed,
-        counts,
-        rejected,
-        anchorless: report.anchorless,
-        capped: report.capped,
-        skippedExisting: report.skippedExisting,
-        verify: null,
-        meta: bundle.meta,
-      }),
-  });
+  // rejected wird mit zurueckgegeben, nicht nur ueber renderBody geschlossen: der
+  // Zweitlauf baut seine eigene Bilanz und braucht die Liste. Ohne sie verschwand jeder
+  // verworfene Befund eines Zweitlaufs samt Grund und Analystennamen.
+  return {
+    ...buildPayload(clusters, {
+      commentable,
+      previousIds,
+      cap,
+      renderBody: (report) =>
+        renderSummary({
+          pluginVersion: pluginVersionString,
+          analystsRun: [...analystFindings.keys()],
+          analystsSkipped: skipped,
+          analystsFailed: failed,
+          counts,
+          rejected,
+          anchorless: report.anchorless,
+          capped: report.capped,
+          skippedExisting: report.skippedExisting,
+          verify: null,
+          meta: bundle.meta,
+        }),
+    }),
+    rejected,
+  };
 }
 
 // `--bundle` liefert absichtlich keine PR-Nummer -- der in der SKILL dokumentierte
@@ -204,25 +233,34 @@ async function cmdPost(positional, flags) {
   ];
   const analysts = loadAnalysts(analystRoots);
   const { raw, failed: jsonFailed } = readAnalystFindings(bundleDir);
-  const failed = [...jsonFailed, ...parseFailed(flags.failed)];
-  if (raw.size === 0 && failed.length === 0) {
+  const declaredFailed = [...jsonFailed, ...parseFailed(flags.failed)];
+  if (raw.size === 0 && declaredFailed.length === 0) {
     fail('Keine Analysten-Findings im Bundle. Die Subagenten haben nichts nach findings/ geschrieben.');
   }
   if (raw.size === 0) {
-    fail(`Alle Analysten sind ausgefallen: ${failed.map((f) => `${f.name} (${f.reason})`).join(', ')}. Kein Review gepostet.`);
+    fail(`Alle Analysten sind ausgefallen: ${declaredFailed.map((f) => `${f.name} (${f.reason})`).join(', ')}. Kein Review gepostet.`);
   }
+
+  const skipped = parseSkipped(flags.skipped);
+  const failed = [...declaredFailed, ...undeclaredAnalysts({ analysts, analystFindings: raw, skipped, failed: declaredFailed })];
 
   const result = aggregate({
     bundle,
     analysts,
     analystFindings: raw,
     failed,
-    skipped: parseSkipped(flags.skipped),
+    skipped,
     cap: flags.cap ? Number(flags.cap) : DEFAULT_CAP,
     pluginVersionString: pluginVersion(),
   });
 
-  const payload = { body: result.body, event: result.event, comments: result.comments };
+  // commit_id ist Pflicht, sobald zwischen fetch und post etwas gepusht wurde: die
+  // Anker sind gegen den head_sha des eingefrorenen Bundles geprueft, GitHub prueft sie
+  // ohne diese Angabe gegen den NEUESTEN Commit des PR und quittiert das ganze Review
+  // mit 422 -- all-or-nothing, kein einziger Kommentar. Bei einem Werkzeug, dessen
+  // Publikum ein Coding-Agent ist, ist ein Fix zwischen den beiden Schritten der
+  // Normalfall, nicht der Randfall.
+  const payload = { commit_id: bundle.meta.head_sha, body: result.body, event: result.event, comments: result.comments };
   writeFileSync(join(bundleDir, 'payload.json'), JSON.stringify(payload, null, 2));
 
   const stats = {
@@ -255,10 +293,13 @@ async function cmdVerify(positional, flags) {
   ];
   const analysts = loadAnalysts(analystRoots);
   const { raw, failed: jsonFailed } = readAnalystFindings(bundleDir);
-  const failed = [...jsonFailed, ...parseFailed(flags.failed)];
+  const declaredFailed = [...jsonFailed, ...parseFailed(flags.failed)];
   if (raw.size === 0) fail('Keine Analysten-Findings im Bundle. Kein Zweitlauf moeglich.');
 
   const skipped = parseSkipped(flags.skipped);
+  // Im Zweitlauf ist ein unentdeckter Ausfall noch teurer als im Erstlauf: seine
+  // fehlenden Meldungen erfuellen Bedingung (1) und loesen Threads auf.
+  const failed = [...declaredFailed, ...undeclaredAnalysts({ analysts, analystFindings: raw, skipped, failed: declaredFailed })];
   const first = aggregate({
     bundle, analysts, analystFindings: raw, failed, skipped,
     cap: flags.cap ? Number(flags.cap) : DEFAULT_CAP,
@@ -289,14 +330,23 @@ async function cmdVerify(positional, flags) {
   const delta = computeDelta({ clusters: reportedNow, threads, haystacks });
 
   // Nur das Delta posten. Bereits gesetzte IDs sind ueber previous.json ohnehin
-  // ausgeschlossen; hier kommt die Zweitlauf-Bilanz oben drauf.
+  // ausgeschlossen; hier kommt die Zweitlauf-Bilanz oben drauf. Rueckfaelle gehoeren
+  // mit ins Delta: sie sind gemeldet, ihr Thread ist aber aufgeloest, und ohne sie
+  // waeren sie nirgends sichtbar.
   const commentable = new Map(bundle.meta.files.map((f) => [f.path, f.commentable]));
+  const toPost = [...delta.fresh, ...delta.regressed];
   const counts = { blocker: 0, major: 0, minor: 0, info: 0 };
-  for (const cluster of delta.fresh) counts[cluster.severity]++;
+  for (const cluster of toPost) counts[cluster.severity]++;
 
-  const result = buildPayload(delta.fresh, {
+  // Ein Rueckfall traegt zwangslaeufig die ID eines existierenden -- aufgeloesten --
+  // Threads. Bliebe sie in previousIds, landete er in skippedExisting und waere genau
+  // dort still, wo er am lautesten sein muesste.
+  const regressedIds = new Set(delta.regressed.map((c) => c.id));
+  const result = buildPayload(toPost, {
     commentable,
-    previousIds: new Set(threads.map((t) => t.marker?.id).filter(Boolean)),
+    previousIds: new Set(
+      threads.map((t) => t.marker?.id).filter((id) => Boolean(id) && !regressedIds.has(id)),
+    ),
     cap: flags.cap ? Number(flags.cap) : DEFAULT_CAP,
     renderBody: (report) =>
       renderSummary({
@@ -305,16 +355,24 @@ async function cmdVerify(positional, flags) {
         analystsSkipped: skipped,
         analystsFailed: failed,
         counts,
-        rejected: [],
+        rejected: first.rejected,
         anchorless: report.anchorless,
         capped: report.capped,
         skippedExisting: report.skippedExisting,
-        verify: { resolved: delta.counts.resolved, stillOpen: delta.counts.stillOpen, fresh: delta.counts.fresh },
+        verify: {
+          resolved: delta.counts.resolved,
+          stillOpen: delta.counts.stillOpen,
+          fresh: delta.counts.fresh,
+          regressed: delta.counts.regressed,
+        },
         meta: bundle.meta,
       }),
   });
 
-  const payload = { body: result.body, event: result.event, comments: result.comments };
+  // Auch hier commit_id: der Zweitlauf laeuft per Definition auf einem PR, an dem
+  // gerade gearbeitet wird -- die Wahrscheinlichkeit eines Pushs zwischen fetch und
+  // verify ist hier hoeher als beim Erstlauf, nicht niedriger.
+  const payload = { commit_id: bundle.meta.head_sha, body: result.body, event: result.event, comments: result.comments };
   writeFileSync(join(bundleDir, 'payload.json'), JSON.stringify(payload, null, 2));
 
   if (flags['dry-run']) {

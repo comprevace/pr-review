@@ -67,7 +67,13 @@ export function validateFinding(raw, ctx) {
   if (!evidenceFound) return reject('Evidenz im Bundle nicht auffindbar');
 
   const severity = clampSeverity(raw.severity, analyst.severity_max);
-  if (confidence === 'niedrig' && severityRank(severity) <= severityRank('minor')) {
+  // Geprueft wird die GEMELDETE Severity, nicht die gedeckelte. Sonst haengt die
+  // Vertrauensregel am severity_max des Analysten: bei "severity_max: minor" -- eine
+  // legitime repo-lokale Entscheidung -- landet jede Meldung auf minor, und "niedrig"
+  // waere fuer diesen Analysten auf JEDER Stufe unbenutzbar, auch wenn er einen
+  // schwerwiegenden Verdacht gemeldet hat. Der Deckel begrenzt, wie laut ein Befund
+  // sein darf; er soll nicht entscheiden, ob er ueberhaupt zaehlt.
+  if (confidence === 'niedrig' && severityRank(raw.severity) <= severityRank('minor')) {
     return reject('niedriges Vertrauen bei geringer Severity');
   }
 

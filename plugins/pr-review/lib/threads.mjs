@@ -55,9 +55,18 @@ export async function resolveThread({ threadId, ghGraphql }) {
 // umformuliert. Nur (1) zu pruefen wuerde einen Befund aufloesen, den ein
 // ausgefallener Analyst nur nicht gemeldet hat. Der Evidenz-Hash im Marker macht
 // (2) ohne Zusatzspeicher pruefbar.
+//
+// Vier Ausgaenge, nicht drei: fresh (nie kommentiert), stillOpen (offen und erneut
+// gemeldet), resolvable (beide Bedingungen erfuellt) und regressed (war aufgeloest,
+// wird wieder gemeldet).
 export function computeDelta({ clusters, threads, haystacks }) {
   const reportedIds = new Set(clusters.map((c) => c.id));
+  const clusterById = new Map(clusters.map((c) => [c.id, c]));
   const knownIds = new Set(threads.map((t) => t.marker?.id).filter(Boolean));
+  // Offene Threads getrennt fuehren: traegt derselbe Befund sowohl einen aufgeloesten
+  // als auch einen offenen Thread, ist er bereits ueber stillOpen bilanziert und darf
+  // nicht zusaetzlich als Rueckfall gezaehlt und erneut gepostet werden.
+  const openIds = new Set(threads.filter((t) => !t.isResolved).map((t) => t.marker?.id).filter(Boolean));
 
   // Zeilenweise Teilstringsuche, genau wie validateFinding und occurrenceIndex.
   // Die Frage lautet "steht das Zitat noch woertlich irgendwo in dieser Datei",
@@ -80,9 +89,25 @@ export function computeDelta({ clusters, threads, haystacks }) {
   const fresh = clusters.filter((c) => !knownIds.has(c.id));
   const stillOpen = [];
   const resolvable = [];
+  const regressed = [];
+  const regressedIds = new Set();
 
   for (const thread of threads) {
-    if (!thread.marker || thread.isResolved) continue;
+    if (!thread.marker) continue;
+
+    // Rueckfall: der Thread war aufgeloest, der Befund wird jetzt wieder gemeldet --
+    // derselbe Code ist zurueck. Ohne diesen Zweig verschwindet er restlos: knownIds
+    // enthaelt auch aufgeloeste Threads, damit ist er nicht "fresh", und ein
+    // bedingungsloses continue auf isResolved liesse ihn auch nicht in stillOpen
+    // landen. Weder gepostet noch gezaehlt -- und ein Rueckfall ist das Interessanteste,
+    // was ein Zweitlauf finden kann.
+    if (thread.isResolved) {
+      if (reportedIds.has(thread.marker.id) && !openIds.has(thread.marker.id) && !regressedIds.has(thread.marker.id)) {
+        regressedIds.add(thread.marker.id);
+        regressed.push(clusterById.get(thread.marker.id));
+      }
+      continue;
+    }
 
     if (reportedIds.has(thread.marker.id)) {
       stillOpen.push(thread.marker.id);
@@ -117,6 +142,12 @@ export function computeDelta({ clusters, threads, haystacks }) {
     fresh,
     stillOpen,
     resolvable,
-    counts: { fresh: fresh.length, stillOpen: stillOpen.length, resolved: resolvable.length },
+    regressed,
+    counts: {
+      fresh: fresh.length,
+      stillOpen: stillOpen.length,
+      resolved: resolvable.length,
+      regressed: regressed.length,
+    },
   };
 }

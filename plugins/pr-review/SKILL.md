@@ -109,6 +109,13 @@ pr-review post <nr> --failed "security-context:Subagent hat keine Datei geschrie
 
 Beide Flags nehmen `name:grund` und mehrere Einträge durch Komma getrennt.
 
+**Die CLI prüft das nach.** Sie kennt alle Analystennamen und trägt jeden, der keine
+Findings-Datei geschrieben hat und in keinem der beiden Flags steht, selbst als
+ausgefallen in die Bilanz ein — mit dem Grund, dass er weder eine Datei geschrieben noch
+gemeldet wurde. Das ist die Rückfalllinie, nicht der Regelweg: dein `--skipped`-Grund ist
+für den Leser brauchbar, dieser hier sagt nur „unklar". Gib bei `--only <name>` also die
+übrigen Analysten als `--skipped` mit, sonst stehen sie als ausgefallen in der Bilanz.
+
 Die CLI validiert die Befunde, verwirft Erfundenes, clustert Überlappungen, hebt die
 Severity bei Mehrfachbefunden, prüft jeden Zeilenanker gegen den Diff und postet
 **einen** Review mit `event: COMMENT`.
@@ -122,7 +129,10 @@ Berichte kurz und in dieser Form:
 - verworfene Befunde mit Grund
 - ankerlose Befunde
 - Link auf das Review
-- beim Zweitlauf: „N behoben, M offen, K neu"
+- beim Zweitlauf: „N behoben, M offen, K neu" — und **jeden Rückfall ausdrücklich**:
+  ein Befund, dessen Thread schon einmal aufgelöst war und der wieder gemeldet wird, ist
+  das Wichtigste, was ein Zweitlauf zu sagen hat. Die Zahl steht als `regressed` in der
+  JSON-Ausgabe von `pr-review verify`.
 
 Wenn ein Analyst ausgefallen ist, sage das deutlich. Ein Review, das stillschweigend
 mit der Hälfte der Analysten gelaufen ist, ist schlimmer als ein sichtbar

@@ -62,6 +62,20 @@ test('Zweitlauf-Bilanz erscheint nur mit verify-Daten', () => {
   assert.match(s, /1 .*neu/);
 });
 
+test('ein Rueckfall bekommt eine eigene, fette Zeile', () => {
+  // Ein Befund, dessen Thread schon einmal aufgeloest war und der wieder gemeldet wird,
+  // ist das Interessanteste, was ein Zweitlauf findet. Er darf nicht leiser sein als ein
+  // neuer Befund -- und ohne Rueckfaelle steht die Zeile nicht da.
+  const ohne = renderSummary({ ...base, verify: { resolved: 1, stillOpen: 0, fresh: 0, regressed: 0 } });
+  assert.doesNotMatch(ohne, /Rückfall/);
+  const mit = renderSummary({ ...base, verify: { resolved: 1, stillOpen: 0, fresh: 0, regressed: 2 } });
+  assert.match(mit, /\*\*⚠ Rückfall: 2 Befunde waren/);
+  assert.match(mit, /wieder da/);
+  // Aeltere Aufrufer ohne das Feld bleiben lesbar, statt "undefined" zu drucken.
+  const alt = renderSummary({ ...base, verify: { resolved: 1, stillOpen: 0, fresh: 0 } });
+  assert.doesNotMatch(alt, /Rückfall|undefined/);
+});
+
 test('Jede Bilanz sagt, dass dies kein Gate ist, und nennt die Version', () => {
   const s = renderSummary(base);
   assert.match(s, /Signal/);

@@ -74,6 +74,16 @@ test('Fall D: Befund ohne auffindbare Evidenz wird verworfen UND gezaehlt', () =
   assert.match(result.body, /Evidenz im Bundle nicht auffindbar/);
 });
 
+test('aggregate gibt die verworfenen Befunde heraus, nicht nur in seine eigene Bilanz', () => {
+  // Der Zweitlauf baut seine Bilanz selbst und kann die Liste nur verwenden, wenn
+  // aggregate sie herausgibt. Vorher schloss sie nur renderBody ein: jeder verworfene
+  // Befund eines Zweitlaufs verschwand samt Grund und Analystennamen aus der Bilanz.
+  const result = run();
+  assert.equal(result.rejected.length, 1);
+  assert.equal(result.rejected[0].analyst, 'spec-fidelity');
+  assert.equal(result.rejected[0].reason, 'Evidenz im Bundle nicht auffindbar');
+});
+
 test('das Review ist ein Kommentar, niemals ein Approve', () => {
   const result = run();
   assert.equal(result.event, 'COMMENT');

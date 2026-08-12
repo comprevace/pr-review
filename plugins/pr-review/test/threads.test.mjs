@@ -148,6 +148,38 @@ test('neuer Befund ohne bestehenden Thread ist fresh', () => {
   assert.equal(delta.counts.fresh, 1);
 });
 
+test('ein Befund, der nach der Aufloesung wiederkehrt, ist ein Rueckfall', () => {
+  // Lauf 2 hat den Thread aufgeloest, Lauf 3 findet denselben Code wieder. Ohne den
+  // Rueckfall-Zweig verschwand das restlos: knownIds enthaelt auch aufgeloeste Threads,
+  // also nicht "fresh", und das continue auf isResolved verhinderte stillOpen. Nichts
+  // gepostet, nichts gezaehlt -- die lauteste Beobachtung eines Zweitlaufs war die
+  // einzige, die gar nicht vorkam.
+  const c = cluster('aaaaaa', 'wieder-da');
+  const delta = computeDelta({
+    clusters: [c],
+    threads: [thread('T1', 'aaaaaa', 'wieder-da', true)],
+    haystacks: new Map([['src/A.java', 'wieder-da\n']]),
+  });
+  assert.deepEqual(delta.regressed.map((x) => x.id), ['aaaaaa']);
+  assert.equal(delta.counts.regressed, 1);
+  assert.deepEqual(delta.fresh, []);
+  assert.deepEqual(delta.stillOpen, []);
+  assert.deepEqual(delta.resolvable, []);
+});
+
+test('ein Rueckfall wird nicht doppelt gezaehlt, wenn derselbe Befund auch offen steht', () => {
+  // Traegt dieselbe ID einen aufgeloesten UND einen offenen Thread, ist der Befund
+  // ueber stillOpen bilanziert. Ein zusaetzlicher Rueckfall waere derselbe Befund
+  // zweimal -- und ein zweiter Kommentar an derselben Stelle.
+  const delta = computeDelta({
+    clusters: [cluster('aaaaaa', 'still-da')],
+    threads: [thread('T1', 'aaaaaa', 'still-da', true), thread('T2', 'aaaaaa', 'still-da')],
+    haystacks: new Map([['src/A.java', 'still-da\n']]),
+  });
+  assert.deepEqual(delta.regressed, []);
+  assert.deepEqual(delta.stillOpen, ['aaaaaa']);
+});
+
 test('bereits aufgeloeste Threads werden nicht wieder angefasst', () => {
   const delta = computeDelta({
     clusters: [],

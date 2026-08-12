@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { clusterFindings } from '../lib/cluster.mjs';
+import { renderComment, parseEvidence, evidenceHash, findingId, occurrenceIndex } from '../lib/comment.mjs';
 
 const A_LINES = ['l1', 'l2', 'l3', 'l4', 'l5', 'l6', 'l7', 'l8', 'l9', '@Disabled("flaky")',
   'l11', 'assertTrue(true);', 'l13', 'l14', 'l15', 'l16', 'l17', 'l18', 'l19', 'far away'];
@@ -129,6 +130,29 @@ test('die Cluster-ID haengt nicht an der Eingabereihenfolge', () => {
   const y = clusterFindings([b, a], ctx);
   assert.equal(x.length, 1);
   assert.equal(x[0].id, y[0].id);
+});
+
+test('id, ev und erstes Blockquote beschreiben dasselbe Item', () => {
+  // Die ID hasht die Evidenz des schwersten Items, renderComment nahm fuer ev und das
+  // erste Blockquote aber items[0] -- und items lag in Zeilenreihenfolge. Damit
+  // beschrieben id und ev zwei VERSCHIEDENE Befunde: ein Zweitlauf, in dem das
+  // leichtere Item behoben ist und der Analyst des schwereren ausfaellt, prueft
+  // Bedingung (2) am Zitat des leichteren und Bedingung (1) an der ID des schwereren --
+  // beide erfuellt, Thread aufgeloest, waehrend der schwerere Befund unveraendert in
+  // der Datei steht. Die Zwei-Bedingungen-Regel kollabiert auf eine.
+  const leichter = f({ analyst: 'gi', line: 10, severity: 'minor', evidence: '@Disabled("flaky")', problem: 'p1', fix: 'f1' });
+  const schwerer = f({ analyst: 'sf', line: 12, severity: 'major', evidence: 'assertTrue(true);', problem: 'p2', fix: 'f2' });
+
+  for (const eingabe of [[leichter, schwerer], [schwerer, leichter]]) {
+    const c = clusterFindings(eingabe, ctx)[0];
+    assert.equal(c.items[0].evidence, 'assertTrue(true);');
+    const body = renderComment(c);
+    const zitat = parseEvidence(body);
+    assert.equal(zitat, 'assertTrue(true);');
+    assert.ok(body.includes(`ev=${evidenceHash(zitat)}`));
+    // Der Kern: die ID gehoert zu genau dem Zitat, das im Kommentar steht.
+    assert.equal(c.id, findingId('src/A.java', zitat, occurrenceIndex(haystacks.get('src/A.java'), zitat, 12)));
+  }
 });
 
 test('Rueckgabe ist nach Severity sortiert', () => {

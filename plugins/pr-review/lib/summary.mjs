@@ -24,6 +24,20 @@ export function renderSummary(input) {
       `**Zweitlauf:** ${verify.resolved} behoben · ${verify.stillOpen} weiterhin offen · ${verify.fresh} neu`,
       '',
     );
+    // Eigene, fette Zeile statt eines vierten Postens in der Aufzaehlung oben: ein
+    // Rueckfall ist das Interessanteste, was ein Zweitlauf finden kann -- ein Befund,
+    // der schon einmal als behoben aufgeloest war und wieder da ist. Er darf nicht
+    // leiser sein als ein neuer Befund. `?? 0` haelt aeltere Aufrufer lesbar, die
+    // verify ohne dieses Feld liefern.
+    const regressed = verify.regressed ?? 0;
+    if (regressed > 0) {
+      out.push(
+        `**⚠ Rückfall: ${regressed} ${regressed === 1 ? 'Befund war' : 'Befunde waren'} schon einmal als behoben ` +
+          `aufgelöst und ${regressed === 1 ? 'ist' : 'sind'} wieder da.** Der alte Thread bleibt aufgelöst; ` +
+          'der Befund steht erneut als Kommentar am Code.',
+        '',
+      );
+    }
   }
 
   const found = SEVERITIES.slice().reverse()

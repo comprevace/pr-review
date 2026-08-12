@@ -7,22 +7,29 @@ deinem eigenen Abschnitt. Alles auf dieser Seite gilt für jeden Analysten gleic
 
 Ein eingefrorenes Bundle-Verzeichnis. Dessen Pfad steht in deinem Auftrag.
 
-| Datei | Inhalt |
-|---|---|
-| `diff.patch` | der gesamte Diff des PR |
-| `patches/<pfad>.patch` | der Diff je Datei |
-| `files/<pfad>` | die betroffene Datei vollständig, Stand des PR-Branches |
-| `tests/<pfad>` | zugehörige Testdateien, falls es welche gibt |
-| `spec.md` | die im PR verlinkte Spec-Datei. Kann leer sein |
-| `conventions.md` | die `CLAUDE.md` des Repos. Kann leer sein |
-| `meta.json` | PR-Metadaten, Dateiliste, `commentable`-Bereiche, `missing_tests` |
+| Datei | Inhalt | zitierbar? |
+|---|---|---|
+| `diff.patch` | der gesamte Diff des PR | — |
+| `patches/<pfad>.patch` | der Diff je Datei | **ja** |
+| `files/<pfad>` | die betroffene Datei vollständig, Stand des PR-Branches | **ja** |
+| `tests/<pfad>` | zugehörige Testdateien, falls es welche gibt | nein |
+| `spec.md` | die im PR verlinkte Spec-Datei. Kann leer sein | nein |
+| `conventions.md` | die `CLAUDE.md` des Repos. Kann leer sein | nein |
+| `meta.json` | PR-Metadaten, Dateiliste, `commentable`-Bereiche, `missing_tests` | nein |
+
+**„Zitierbar" heißt: daraus darf `evidence` stammen.** Alles andere ist zum
+**Verstehen** da. `tests/`, `spec.md` und `conventions.md` sagen dir, was der Code
+leisten sollte und was das Repo verlangt — aber ein Zitat von dort wird maschinell
+verworfen. Siehe „Evidenz" unten; das ist die Regel, an der die meisten Befunde
+scheitern.
 
 ## Was du nicht tust
 
 **Lies ausschließlich innerhalb des Bundle-Verzeichnisses.** Nicht im Repo, nicht im
 Internet, nicht in anderen Bundles. Der Grund ist nicht Bürokratie: Jeder Befund
-braucht ein wörtliches Zitat aus dem Bundle, und ein Zitat von außerhalb wird
-maschinell verworfen. Du würdest dir also nur selbst die Arbeit ruinieren.
+braucht ein wörtliches Zitat aus einer der **geänderten** Dateien des PR, und ein Zitat
+von außerhalb wird maschinell verworfen. Du würdest dir also nur selbst die Arbeit
+ruinieren.
 
 **Melde nichts, was ein Werkzeug besser prüft.** Kompilierfehler, Typfehler,
 Formatierung, Importreihenfolge, Namenskonventionen, bekannte CVEs in
@@ -63,14 +70,14 @@ misstrauisch gegen die echten.
 
 | Feld | Regel |
 |---|---|
-| `file` | Pfad genau wie in `meta.json`. Pflicht |
+| `file` | Pfad genau wie in `meta.json` — **eine der im PR geänderten Dateien**, nichts anderes. Pflicht |
 | `line` | Zeile in der **neuen** Fassung bei `side: RIGHT`, in der alten bei `LEFT`. Pflicht |
 | `start_line` | Nur wenn der Befund einen Bereich betrifft. Muss ≤ `line` sein. Optional |
 | `side` | `RIGHT` (Standard) oder `LEFT` für entfernte Zeilen. Optional |
 | `severity` | `info`, `minor`, `major`, `blocker`. Siehe Leiter unten. Pflicht |
 | `title` | Maximal etwa 60 Zeichen, benennt die Sache, nicht die Lösung. Pflicht |
 | `problem` | Was ist falsch **und warum**. Kein Auftrag hier. Pflicht |
-| `evidence` | **Einzeilig, maximal 200 Zeichen, wörtlich aus dem Bundle.** Siehe unten. Pflicht |
+| `evidence` | **Einzeilig, maximal 200 Zeichen, wörtlich aus der Datei, die du in `file` nennst.** Siehe unten. Pflicht |
 | `fix` | Handlungsauftrag im Imperativ. Siehe unten. Pflicht |
 | `confidence` | `hoch`, `mittel`, `niedrig`. Ohne Angabe gilt `mittel`. Siehe unten |
 
@@ -96,9 +103,34 @@ mitteilungswürdig.
 
 ### Evidenz — die härteste Regel
 
-Das Zitat muss **wörtlich** im Bundle stehen, einzeilig und höchstens 200 Zeichen.
-Einrückung ist egal, alles andere nicht. Ein Befund, dessen Zitat nicht auffindbar
-ist, wird verworfen und in der Bilanz als verworfen gezählt — dein Name steht dabei.
+Das Zitat muss **wörtlich in genau der Datei stehen, die du in `file` nennst**,
+einzeilig und höchstens 200 Zeichen. Einrückung ist egal, alles andere nicht. Ein
+Befund, dessen Zitat nicht auffindbar ist, wird verworfen und in der Bilanz als
+verworfen gezählt — dein Name steht dabei.
+
+Zwei Bedingungen, und beide werden maschinell geprüft:
+
+1. `file` ist **eine der geänderten Dateien aus `meta.json`**. Eine Datei, die der PR
+   nicht anfasst, wird mit „Datei nicht im Diff" verworfen.
+2. Das Zitat steht im Text **dieser** Datei — also in `files/<file>` (Stand des
+   PR-Branches) **oder** in ihrem Diff `patches/<file>.patch`. Der Patch ist der Weg
+   zu **entfernten** Zeilen: was der PR gelöscht hat, steht nur dort, mit `-` davor.
+   Zitiere den Zeileninhalt ohne das `-`, und setze `side: LEFT`.
+
+**`tests/`, `spec.md` und `conventions.md` sind nicht zitierbar.** Sie sind zum
+Verstehen da. Ein Zitat aus einer unveränderten Testdatei, aus der Spec oder aus den
+Konventionen ist im Haystack der geänderten Dateien nicht auffindbar und wird
+verworfen — auch wenn du wörtlich richtig zitiert hast.
+
+Das betrifft besonders den Fall „hier fehlt jetzt eine Prüfung":
+
+- Ist die **Testdatei selbst geändert**, steht sie in `meta.json` und ihr Patch enthält
+  die entfernte Assertion. Dann ist sie `file`, das Zitat kommt aus
+  `patches/<file>.patch`, `side: LEFT` — genau der richtige Ort.
+- Ist die Testdatei **unverändert** (sie liegt nur unter `tests/` zum Nachlesen), gibt
+  es dort nichts zu zitieren. Nimm dann die geänderte Datei, die das Problem
+  **verursacht**, und zitiere die Zeile in ihr; beschreibe im `problem`, welche
+  Absicherung im unveränderten Test damit ins Leere läuft.
 
 Wähle die Zeile, die das Problem **zeigt**, nicht die, die es umgibt.
 
