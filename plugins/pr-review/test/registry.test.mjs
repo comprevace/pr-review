@@ -66,6 +66,22 @@ test('loadAnalysts wirft, wenn name nicht zum Dateinamen passt', () => {
   assert.throws(() => loadAnalysts([root]), /x\.md/);
 });
 
+test('Brace-Glob mit Komma im Zitat bleibt unversehrt', () => {
+  const doc = '---\nname: vue\ntitle: Vue\nwhen: paths\npaths: ["**/*.{vue,ts}", "src/**"]\nseverity_max: major\n---\nB\n';
+  const { meta } = parseFrontmatter(doc);
+  assert.deepEqual(meta.paths, ['**/*.{vue,ts}', 'src/**']);
+});
+
+test('ein Brace-Glob greift danach auf beide Endungen', () => {
+  const root = makeRoot({
+    'vue.md': '---\nname: vue\ntitle: Vue\nwhen: paths\npaths: ["**/*.{vue,ts}"]\nseverity_max: major\n---\nB\n',
+  });
+  const analysts = loadAnalysts([root]);
+  assert.equal(selectAnalysts(analysts, ['src/Foo.vue']).selected.length, 1);
+  assert.equal(selectAnalysts(analysts, ['src/Foo.ts']).selected.length, 1);
+  assert.equal(selectAnalysts(analysts, ['README.md']).selected.length, 0);
+});
+
 test('selectAnalysts nimmt always immer und paths nur bei Treffer', () => {
   const root = makeRoot({
     'core.md': ALWAYS('core', 'Kern'),

@@ -24,9 +24,21 @@ export function parseFrontmatter(text) {
     if (value.startsWith('[')) {
       if (!value.endsWith(']')) throw new Error(`Array bei "${key}" nicht in einer Zeile geschlossen`);
       const inner = value.slice(1, -1).trim();
-      meta[key] = inner === ''
-        ? []
-        : inner.split(',').map((s) => s.trim().replace(/^["']|["']$/g, '')).filter((s) => s !== '');
+      if (inner === '') {
+        meta[key] = [];
+      } else if (/["']/.test(inner)) {
+        // Sind Anfuehrungszeichen da, werden nur die zitierten Segmente gelesen.
+        // Ein Komma INNERHALB eines Zitats gehoert zum Wert: der Brace-Glob
+        // "**/*.{vue,ts}" wuerde von einem naiven split(',') zu "**/*.{vue" und
+        // "ts}" zerlegt. Beide passen danach auf nichts, der Analyst wird still
+        // nie gestartet -- ein Fehler, der erst auffaellt, wenn jemand sich
+        // fragt, warum sein Frontend-Analyst nie laeuft.
+        const items = [...inner.matchAll(/(["'])(.*?)\1/g)].map((m) => m[2]).filter((s) => s !== '');
+        if (items.length === 0) throw new Error(`Array bei "${key}" hat kein lesbares Element`);
+        meta[key] = items;
+      } else {
+        meta[key] = inner.split(',').map((s) => s.trim()).filter((s) => s !== '');
+      }
     } else {
       meta[key] = value.replace(/^["']|["']$/g, '');
     }
