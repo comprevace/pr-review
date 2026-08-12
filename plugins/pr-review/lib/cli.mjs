@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { readFileSync, readdirSync, existsSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { ghApi, currentRepo, ghGraphql } from './gh.mjs';
 import { buildBundle, bundlePathFor, loadBundle } from './bundle.mjs';
 // Nur loadAnalysts: die Auswahl (selectAnalysts) passiert im Modell in Phase 1 der
@@ -283,20 +284,30 @@ async function cmdVerify(positional, flags) {
   process.stdout.write(`${JSON.stringify({ ...delta.counts, posted: result.comments.length, reviewId: review?.id }, null, 2)}\n`);
 }
 
-const { positional, flags } = parseArgs(process.argv.slice(2));
-const command = positional.shift();
+// Der Dispatcher laeuft NUR, wenn diese Datei der Einstiegspunkt ist. Ohne diese
+// Bedingung fuehrt jeder `import` aus cli.mjs den Dispatcher mit aus -- und da ein
+// Testprozess kein Subkommando in process.argv hat, faellt er in den else-Zweig,
+// ruft fail() und beendet den Testlauf, bevor ein einziger Test startet. Die Datei
+// ist Modul UND Programm; beim Importieren darf nur das Modul passieren.
+const isEntryPoint =
+  process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.argv[1]).href;
 
-try {
-  if (command === 'fetch') await cmdFetch(positional, flags);
-  else if (command === 'path') {
-    const repo = flags.repo ?? (await currentRepo());
-    process.stdout.write(`${bundlePathFor(repo, Number(positional[0]))}\n`);
+if (isEntryPoint) {
+  const { positional, flags } = parseArgs(process.argv.slice(2));
+  const command = positional.shift();
+
+  try {
+    if (command === 'fetch') await cmdFetch(positional, flags);
+    else if (command === 'path') {
+      const repo = flags.repo ?? (await currentRepo());
+      process.stdout.write(`${bundlePathFor(repo, Number(positional[0]))}\n`);
+    }
+    else if (command === 'post') await cmdPost(positional, flags);
+    else if (command === 'verify') await cmdVerify(positional, flags);
+    else {
+      fail('Unbekanntes Kommando. Verfuegbar: fetch, post, verify, path');
+    }
+  } catch (err) {
+    fail(err.message);
   }
-  else if (command === 'post') await cmdPost(positional, flags);
-  else if (command === 'verify') await cmdVerify(positional, flags);
-  else {
-    fail('Unbekanntes Kommando. Verfuegbar: fetch, post, verify, path');
-  }
-} catch (err) {
-  fail(err.message);
 }
