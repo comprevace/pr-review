@@ -47,12 +47,24 @@ export function renderMarker({ id, sev, analysts, ev }) {
   return `<!-- pr-review:v1 id=${id} sev=${sev}${evPart} analysts=${analysts.join(',')} -->`;
 }
 
-const MARKER_RE = /<!--\s*pr-review:v1\s+id=([0-9a-f]{6})\s+sev=(\w+)(?:\s+ev=([0-9a-f]{8}))?\s+analysts=(\S*)\s*-->/;
+// Am Textende verankert, und das ist keine Kosmetik: renderComment setzt den Marker
+// immer als letzte Zeile. Ohne Anker wuerde ein Mensch, der den Marker in einem
+// Codeblock ERKLAERT, als gesetzter Marker gelesen -- und damit einen echten Befund
+// unterdruecken, weil der Zweitlauf ihn fuer schon kommentiert haelt. Die
+// Kommentarliste des PR ist nicht nach Autor gefiltert, also ist das kein
+// Randfall, sondern der Normalfall in einem PR, in dem jemand ueber das Verfahren
+// diskutiert.
+const MARKER_RE = /<!--\s*pr-review:v1\s+id=([0-9a-f]{6})\s+sev=(\w+)(?:\s+ev=([0-9a-f]{8}))?\s+analysts=(\S*)\s*-->\s*$/;
 
 export function parseMarker(body) {
   const m = MARKER_RE.exec(String(body ?? ''));
   if (!m) return null;
-  return { id: m[1], sev: m[2], ev: m[3] ?? null, analysts: m[4] === '' ? [] : m[4].split(',') };
+  return {
+    id: m[1],
+    sev: m[2],
+    ev: m[3] ?? null,
+    analysts: m[4] === '' ? [] : m[4].split(',').filter((a) => a !== ''),
+  };
 }
 
 export function renderComment(cluster) {

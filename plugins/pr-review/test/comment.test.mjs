@@ -68,6 +68,18 @@ test('parseMarker ignoriert fremde Kommentare', () => {
   assert.equal(parseMarker('<!-- andere-tooling id=1 -->'), null);
 });
 
+test('ein zitierter Marker mitten im Text gilt nicht als gesetzt', () => {
+  // Sonst unterdrueckt eine menschliche Erklaerung des Verfahrens einen echten
+  // Befund: der Zweitlauf haelt ihn fuer schon kommentiert.
+  const marker = renderMarker({ id: 'aaaaaa', sev: 'major', ev: 'deadbeef', analysts: ['gi'] });
+  const quoted = ['So sieht der Marker aus:', '', '```', marker, '```', '', 'Ende.'].join('\n');
+  assert.equal(parseMarker(quoted), null);
+});
+
+test('analysts mit Komma am Ende ergibt keinen Leereintrag', () => {
+  assert.deepEqual(parseMarker('<!-- pr-review:v1 id=aaaaaa sev=major analysts=gi, -->').analysts, ['gi']);
+});
+
 const cluster = {
   file: 'src/A.java', side: 'RIGHT', line: 12, start_line: 10,
   severity: 'blocker', baseSeverity: 'major', escalated: true, tension: true,
