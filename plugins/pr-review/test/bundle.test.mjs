@@ -36,9 +36,9 @@ test('testCandidates erkennt Testdateien selbst und schlaegt nichts vor', () => 
 });
 
 test('resolveSpecPath bevorzugt Body-Link, dann Titel, dann Branch', () => {
-  assert.equal(resolveSpecPath({ body: 'siehe specs/AFM-123.md hier', title: 'x', headRef: 'y' }), 'specs/AFM-123.md');
-  assert.equal(resolveSpecPath({ body: 'ohne', title: 'AFM-77: Session', headRef: 'y' }), 'specs/AFM-77.md');
-  assert.equal(resolveSpecPath({ body: 'ohne', title: 'ohne', headRef: 'feature/AFM-9-session' }), 'specs/AFM-9.md');
+  assert.equal(resolveSpecPath({ body: 'siehe specs/DEMO-123.md hier', title: 'x', headRef: 'y' }), 'specs/DEMO-123.md');
+  assert.equal(resolveSpecPath({ body: 'ohne', title: 'DEMO-77: Session', headRef: 'y' }), 'specs/DEMO-77.md');
+  assert.equal(resolveSpecPath({ body: 'ohne', title: 'ohne', headRef: 'feature/DEMO-9-session' }), 'specs/DEMO-9.md');
   assert.equal(resolveSpecPath({ body: 'ohne', title: 'ohne', headRef: 'chore/cleanup' }), null);
 });
 
@@ -49,9 +49,9 @@ test('buildBundle schreibt meta, Dateien und commentable-Map', async () => {
     calls.push(endpoint);
     if (endpoint === '/repos/example/demo/pulls/1') {
       return {
-        number: 1, title: 'AFM-5: x', body: 'siehe specs/AFM-5.md',
+        number: 1, title: 'DEMO-5: x', body: 'siehe specs/DEMO-5.md',
         user: { login: 'alice' }, labels: [{ name: 'agent' }],
-        base: { sha: 'base1' }, head: { sha: 'head1', ref: 'feature/AFM-5-x' },
+        base: { sha: 'base1' }, head: { sha: 'head1', ref: 'feature/DEMO-5-x' },
       };
     }
     if (endpoint === '/repos/example/demo/pulls/1/files') {
@@ -74,7 +74,7 @@ test('buildBundle schreibt meta, Dateien und commentable-Map', async () => {
 
   assert.equal(summary.files, 2);
   assert.equal(summary.changedLines, 3);
-  assert.equal(summary.specLink, 'specs/AFM-5.md');
+  assert.equal(summary.specLink, 'specs/DEMO-5.md');
   assert.deepEqual(summary.patchMissing, ['img/logo.png']);
   assert.deepEqual(summary.missingTests, ['src/A.java']);
 

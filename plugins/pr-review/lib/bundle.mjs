@@ -85,6 +85,11 @@ export async function buildBundle({ repo, number, ghApi, bundleDir }) {
   const missingTests = [];
   const patchParts = [];
   let changedLines = 0;
+  // Einmal aufbauen, nicht je Datei. "removed" wird ausgeschlossen: eine im PR
+  // geloeschte Testdatei existiert am head_sha nicht mehr und darf nicht als
+  // "Test vorhanden" zaehlen -- sonst verschwindet die Produktivdatei still aus
+  // missing_tests, obwohl ihr Test gerade weggefallen ist.
+  const changedPaths = new Set(rawFiles.filter((x) => x.status !== 'removed').map((x) => x.filename));
 
   for (const f of rawFiles) {
     const entry = {
@@ -111,7 +116,6 @@ export async function buildBundle({ repo, number, ghApi, bundleDir }) {
 
     const candidates = testCandidates(f.filename);
     if (candidates.length > 0) {
-      const changedPaths = new Set(rawFiles.map((x) => x.filename));
       let found = false;
       for (const cand of candidates) {
         const text = changedPaths.has(cand) ? null : await fetchText(ghApi, repo, cand, headSha);
