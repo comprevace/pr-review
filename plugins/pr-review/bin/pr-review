@@ -1,0 +1,4 @@
+#!/bin/sh
+# Das Plugin legt bin/ auf den PATH. Die Logik liegt als ESM in lib/cli.mjs;
+# ein sh-Wrapper erspart eine package.json nur fuer "type": "module".
+exec node "$(dirname "$0")/../lib/cli.mjs" "$@"
