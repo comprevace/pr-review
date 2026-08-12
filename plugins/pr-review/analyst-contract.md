@@ -66,13 +66,33 @@ misstrauisch gegen die echten.
 | `file` | Pfad genau wie in `meta.json`. Pflicht |
 | `line` | Zeile in der **neuen** Fassung bei `side: RIGHT`, in der alten bei `LEFT`. Pflicht |
 | `start_line` | Nur wenn der Befund einen Bereich betrifft. Muss ≤ `line` sein. Optional |
-| `side` | `RIGHT` (Standard) oder `LEFT` für entfernte Zeilen |
-| `severity` | `info`, `minor`, `major`, `blocker`. Siehe Leiter unten |
-| `title` | Maximal etwa 60 Zeichen, benennt die Sache, nicht die Lösung |
-| `problem` | Was ist falsch **und warum**. Kein Auftrag hier |
-| `evidence` | **Einzeilig, maximal 200 Zeichen, wörtlich aus dem Bundle.** Siehe unten |
-| `fix` | Handlungsauftrag im Imperativ. Siehe unten |
-| `confidence` | `hoch`, `mittel`, `niedrig` |
+| `side` | `RIGHT` (Standard) oder `LEFT` für entfernte Zeilen. Optional |
+| `severity` | `info`, `minor`, `major`, `blocker`. Siehe Leiter unten. Pflicht |
+| `title` | Maximal etwa 60 Zeichen, benennt die Sache, nicht die Lösung. Pflicht |
+| `problem` | Was ist falsch **und warum**. Kein Auftrag hier. Pflicht |
+| `evidence` | **Einzeilig, maximal 200 Zeichen, wörtlich aus dem Bundle.** Siehe unten. Pflicht |
+| `fix` | Handlungsauftrag im Imperativ. Siehe unten. Pflicht |
+| `confidence` | `hoch`, `mittel`, `niedrig`. Ohne Angabe gilt `mittel`. Siehe unten |
+
+Ein Befund wird **verworfen**, wenn ein Pflichtfeld fehlt oder leer ist, die Datei
+nicht im Diff steht, `line` keine positive Ganzzahl ist, `start_line` hinter `line`
+liegt, `severity` oder `confidence` unbekannt ist, die Evidenz mehrzeilig oder länger
+als 200 Zeichen ist, die Evidenz im Bundle nicht auffindbar ist — oder wenn die
+Vertrauensregel unten verletzt wird. Jeder verworfene Befund wird mit Grund und deinem
+Namen in der Bilanz gezählt.
+
+### Vertrauen — eine Regel, die man kennen muss
+
+**`confidence: niedrig` ist bei `severity: minor` und `info` unzulässig und wird
+verworfen.** Der Gedanke dahinter: eine geringfügige Beobachtung, bei der du dir
+zusätzlich unsicher bist, kostet den Leser mehr Aufmerksamkeit als sie wert ist.
+
+Praktisch heißt das: Bist du unsicher, ob eine Sache überhaupt ein Problem ist, dann
+melde sie **nicht** als `minor` mit `niedrig` — das kommt nirgends an. Entweder du
+hältst sie für wichtig genug, dann `major` (dort ist `niedrig` erlaubt und wird
+sichtbar ausgewiesen), oder du lässt sie weg. Bei `blocker` und `major` ist `niedrig`
+ausdrücklich in Ordnung: ein schwerwiegender Verdacht ist auch unsicher noch
+mitteilungswürdig.
 
 ### Evidenz — die härteste Regel
 
@@ -93,7 +113,9 @@ Den Befund liest ein Coding-Agent, der ihn abarbeiten soll. Also:
 
 Wenn du den Fix nicht konkret benennen kannst, ist das ein Zeichen, dass du das
 Problem noch nicht verstanden hast. Dann `confidence: niedrig` und benenne im
-`problem`, was du nicht beurteilen konntest.
+`problem`, was du nicht beurteilen konntest — **aber beachte die Vertrauensregel
+oben**: mit `niedrig` muss die Severity mindestens `major` sein, sonst wird der Befund
+verworfen und niemand liest ihn.
 
 ### Severity-Leiter
 

@@ -53,8 +53,8 @@ Grundlage, und geratene Kriterien wären schlimmer als keine.
 
 ## Ausdrücklich NICHT deine Sache
 
-- **Wie gut der Code ist.** Struktur, Lesbarkeit, Komplexität, Duplikation — nicht
-  deine Blickrichtung, selbst wenn es ins Auge springt.
+- **Wie gut der Code ist.** Struktur, Lesbarkeit, Komplexität, Duplikation — das ist
+  `complexity`, nicht deine Blickrichtung, selbst wenn es ins Auge springt.
 - **Ob Tests etwas taugen.** Nur ob ein Kriterium **überhaupt** eine Absicherung
   hat, gehört dir; die Qualität ist `test-substance`.
 - **Ob Prüfungen abgeschaltet wurden.** Das ist `gate-integrity`.

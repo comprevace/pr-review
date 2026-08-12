@@ -36,6 +36,18 @@ verschärft wird:
 - Neue Ausnahme in einer Scanner-Konfiguration ohne Begründung und ohne Befristung
 - Änderungen an Workflow-Dateien in einem PR, der inhaltlich nichts mit CI zu tun hat
 
+**Pruefung ins Leere gelenkt**
+- Ein Mock oder Stub ersetzt genau das, was der Test pruefen soll — die Assertions
+  laufen dann gegen die Attrappe, nicht gegen den Produktivcode. Achte auf einen
+  neuen Mock, der die Klasse unter Test selbst nachbildet statt ihrer Abhaengigkeiten.
+- Ein CI-Trigger verengt statt entfernt: neuer `paths:`- oder `branches:`-Filter,
+  Umstellung auf `workflow_dispatch`-only, ein `if:` mit einer Bedingung, die im
+  Normalbetrieb nie zutrifft. Stiller als ein geloeschter Job und leichter zu
+  uebersehen.
+- Eine Ausnahme in der Coverage- oder Scannerkonfiguration: `/* istanbul ignore */`,
+  JaCoCo-`<exclude>`, `codecov.yml`-`ignore`, `sonar.exclusions`. Der Code bleibt
+  stehen, wird aber nicht mehr mitgezaehlt.
+
 **Fehler verschluckt**
 - Neuer leerer `catch`-Block, `catch` mit reinem Log ohne Weitergabe
 - `try/catch` um etwas gelegt, das vorher hart fehlschlug
@@ -58,4 +70,8 @@ plausibler, im Code stehender Begründung ist `minor`. Ohne Begründung `major`.
 - **Ob die Anforderung erfüllt ist.** Das ist `spec-fidelity`.
 - **Sicherheitslücken im Fachcode.** Das ist `security-context`.
 - **Unnötige Komplexität.** Das ist `complexity`.
-- Alles, was ein Linter findet.
+- **Der Verstoss, den ein stillgelegter Linter gemeldet haette.** Hier liegt eine
+  Feinheit, die du nicht verwechseln darfst: Dass jemand `// eslint-disable` oder
+  `NOSONAR` **neu hinzufuegt**, ist dein Befund — es ist eine Stilllegung der
+  Pruefschicht. Ob der darunterliegende Code die Regel verletzt, ist es nicht; das
+  haette der Linter gesagt. Melde also die Stilllegung, nicht den Verstoss.
