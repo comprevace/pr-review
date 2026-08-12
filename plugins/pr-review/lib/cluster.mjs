@@ -39,9 +39,18 @@ function finalize(acc, file, side, haystacks, analystTitles) {
   const severity = multiple ? raiseSeverity(baseSeverity) : baseSeverity;
 
   // Die ID haengt am schwersten Item; bei Gleichstand am alphabetisch ersten
-  // Analysten, damit die Eingabereihenfolge sie nicht veraendert.
+  // Analysten, dann am Evidenztext, dann an der Zeile. Die letzten zwei Kriterien
+  // sind nicht Kosmetik: meldet EIN Analyst zwei gleich schwere Befunde in derselben
+  // Zeile, sind Severity und Analystenname gleich, und ohne inhaltlichen Tiebreak
+  // entscheidet die Eingabereihenfolge, welches Item die ID stellt. Dieselbe
+  // Fundstelle bekaeme dann je Lauf eine andere ID -- und der Zweitlauf hielte
+  // jeden Befund fuer neu, womit die ganze Idempotenz hinfaellig waere.
   const primary = [...withTitles].sort(
-    (a, b) => severityRank(b.severity) - severityRank(a.severity) || a.analyst.localeCompare(b.analyst),
+    (a, b) =>
+      severityRank(b.severity) - severityRank(a.severity) ||
+      a.analyst.localeCompare(b.analyst) ||
+      a.evidence.localeCompare(b.evidence) ||
+      a.line - b.line,
   )[0];
   const haystack = haystacks?.get(file) ?? '';
   const id = findingId(file, primary.evidence, occurrenceIndex(haystack, primary.evidence, primary.line));
@@ -89,12 +98,17 @@ export function clusterFindings(findings, { tolerance = DEFAULT_TOLERANCE, hayst
     if (current) clusters.push(finalize(current, file, side, haystacks, analystTitles));
   }
 
+  // side als letztes Kriterium, weil zwei Cluster in derselben Datei auf derselben
+  // Zeilennummer liegen koennen -- einer auf LEFT (entfernte Zeile), einer auf
+  // RIGHT. Ohne dieses Kriterium waere ihre Reihenfolge nicht durch den Vertrag
+  // bestimmt, sondern durch Zufall der Gruppierung.
   clusters.sort(
     (a, b) =>
       severityRank(b.severity) - severityRank(a.severity) ||
       b.analysts.length - a.analysts.length ||
       a.file.localeCompare(b.file) ||
-      a.line - b.line,
+      a.line - b.line ||
+      a.side.localeCompare(b.side),
   );
   return clusters;
 }

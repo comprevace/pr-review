@@ -118,6 +118,19 @@ test('Cluster-ID stammt vom schwersten Item und ist unabhaengig von der Eingaber
   assert.match(a[0].id, /^[0-9a-f]{6}$/);
 });
 
+test('die Cluster-ID haengt nicht an der Eingabereihenfolge', () => {
+  // Ein Analyst meldet zwei gleich schwere Befunde in DERSELBEN Zeile. Severity und
+  // Analystenname sind damit gleich; ohne inhaltlichen Tiebreak entscheidet die
+  // Eingabereihenfolge, welches Item die ID stellt, und der Zweitlauf haelt
+  // dieselbe Fundstelle fuer neu.
+  const a = f({ analyst: 'gi', line: 10, evidence: '@Disabled("flaky")', problem: 'p1', fix: 'f1' });
+  const b = f({ analyst: 'gi', line: 10, evidence: 'assertTrue(true);', problem: 'p2', fix: 'f2' });
+  const x = clusterFindings([a, b], ctx);
+  const y = clusterFindings([b, a], ctx);
+  assert.equal(x.length, 1);
+  assert.equal(x[0].id, y[0].id);
+});
+
 test('Rueckgabe ist nach Severity sortiert', () => {
   const out = clusterFindings([
     f({ analyst: 'cx', file: 'src/B.java', line: 1, severity: 'minor', evidence: 'only one line' }),
