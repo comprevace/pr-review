@@ -1,0 +1,13 @@
+{
+  "name": "pr-review",
+  "owner": {
+    "name": "Robin Korn"
+  },
+  "plugins": [
+    {
+      "name": "pr-review",
+      "source": "./plugins/pr-review",
+      "description": "Agentisches PR-Review: spezialisierte Reviewer-Subagenten auf einem eingefrorenen Diff-Bundle, Findings als Inline-Kommentare in einem API-Call."
+    }
+  ]
+}
