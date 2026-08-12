@@ -14,23 +14,15 @@ export function occurrenceIndex(haystack, evidence, line) {
     if (normalizeForSearch(lines[i]).includes(needle)) hits.push(i + 1);
   }
   if (hits.length === 0) return 0;
-  // Vorkommen on/before line bevorzugt, dann after, ties gehen zum ersten
-  let beforeBest = -1;
-  let beforeDistance = Infinity;
-  let afterBest = -1;
-  let afterDistance = Infinity;
+  let best = 0;
+  let bestDistance = Infinity;
   for (let k = 0; k < hits.length; k++) {
     const distance = Math.abs(hits[k] - line);
-    if (hits[k] <= line && distance < beforeDistance) {
-      beforeDistance = distance;
-      beforeBest = k;
-    }
-    if (hits[k] > line && distance < afterDistance) {
-      afterDistance = distance;
-      afterBest = k;
+    if (distance < bestDistance) {
+      bestDistance = distance;
+      best = k;
     }
   }
-  const best = beforeBest >= 0 ? beforeBest : afterBest;
   return best + 1;
 }
 

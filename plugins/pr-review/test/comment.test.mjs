@@ -2,12 +2,15 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { occurrenceIndex, findingId, evidenceHash, renderMarker, parseMarker, renderComment } from '../lib/comment.mjs';
 
-const FILE = ['a', '  @Disabled("flaky")', 'c', 'd', '  @Disabled("flaky")', 'f'].join('\n');
+// Vorkommen in Zeile 2 und Zeile 6. Zeile 4 liegt damit genau dazwischen und
+// prueft den Gleichstand wirklich -- bei Vorkommen in 2 und 5 waere Zeile 4 kein
+// Gleichstand, sondern naeher an 5, und die Erwartung "erstes" waere falsch.
+const FILE = ['a', '  @Disabled("flaky")', 'c', 'd', 'e', '  @Disabled("flaky")', 'g'].join('\n');
 
 test('occurrenceIndex waehlt das Vorkommen, das der Zeile am naechsten liegt', () => {
   assert.equal(occurrenceIndex(FILE, '@Disabled("flaky")', 2), 1);
-  assert.equal(occurrenceIndex(FILE, '@Disabled("flaky")', 5), 2);
-  assert.equal(occurrenceIndex(FILE, '@Disabled("flaky")', 4), 1); // Gleichstand -> erstes
+  assert.equal(occurrenceIndex(FILE, '@Disabled("flaky")', 6), 2);
+  assert.equal(occurrenceIndex(FILE, '@Disabled("flaky")', 4), 1); // echter Gleichstand -> erstes
 });
 
 test('occurrenceIndex gibt 0 zurueck, wenn die Evidenz fehlt', () => {
@@ -16,6 +19,17 @@ test('occurrenceIndex gibt 0 zurueck, wenn die Evidenz fehlt', () => {
 
 test('occurrenceIndex ignoriert Einrueckungsunterschiede', () => {
   assert.equal(occurrenceIndex('   x = 1;', 'x = 1;', 1), 1);
+});
+
+test('ein Vorkommen unterhalb der gemeldeten Zeile gewinnt, wenn es naeher liegt', () => {
+  // Gegen die naheliegende Fehlimplementierung "erst oberhalb suchen, dann
+  // unterhalb": die waehlt bei gemeldeter Zeile 84 das Vorkommen aus Zeile 10
+  // statt dem aus Zeile 85. Die ID zeigte dann auf eine andere Stelle als der
+  // Befund, und der Zweitlauf verglich Aepfel mit Birnen.
+  const lines = Array.from({ length: 90 }, () => 'filler');
+  lines[9] = '  @Disabled("x")';
+  lines[84] = '  @Disabled("x")';
+  assert.equal(occurrenceIndex(lines.join('\n'), '@Disabled("x")', 84), 2);
 });
 
 test('findingId ist stabil gegen Zeilenverschiebung', () => {
