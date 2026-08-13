@@ -25,12 +25,18 @@ export function buildPayload(clusters, { commentable, previousIds = new Set(), c
     anchored.push(cluster);
   }
 
+  // Die ID als letztes Kriterium: seit der Gruppenschluessel das Zitat ist, liegen
+  // regelmaessig zwei Cluster auf derselben Zeile (zwei Analysten zitieren verschiedene
+  // Fragmente). Severity, Analystenzahl, Datei und Zeile sind dann gleich, und ohne
+  // inhaltlichen Tiebreak entscheidet die Eingabereihenfolge, in welcher Reihenfolge die
+  // Kommentare im PR erscheinen -- und mit ihr, welcher bei der Kappung wegfaellt.
   anchored.sort(
     (a, b) =>
       severityRank(b.severity) - severityRank(a.severity) ||
       b.analysts.length - a.analysts.length ||
       a.file.localeCompare(b.file) ||
-      a.line - b.line,
+      a.line - b.line ||
+      a.id.localeCompare(b.id),
   );
 
   const posted = anchored.slice(0, cap);

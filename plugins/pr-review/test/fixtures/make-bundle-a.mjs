@@ -2,11 +2,22 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { commentableRanges } from '../../lib/diff.mjs';
 
-// Synthetisch, ohne jeden Projektbezug. Vier gepflanzte Faelle:
-//   A + B  zwei Analysten in Zeile 10 und 12 derselben Datei -> EIN Kommentar,
-//          zwei Tags, Severity von major auf blocker erhoeht
+// Synthetisch, ohne jeden Projektbezug. Fuenf gepflanzte Faelle:
+//   A + B  zwei Analysten zitieren DASSELBE Fragment, verankern es aber verschieden
+//          (Zeile 10 und 12) -> EIN Kommentar, zwei Tags, von major auf blocker erhoeht
+//   E      ein dritter Befund zwei Zeilen daneben mit einem ANDEREN Zitat -> ein
+//          ZWEITER Kommentar, nicht erhoeht
 //   C      Befund auf Zeile 17, die ausserhalb der Diff-Hunks liegt -> Bilanz
 //   D      Befund mit Evidenz, die im Bundle nicht vorkommt -> verworfen, gezaehlt
+//
+// A+B und E sind ein Paar und pruefen die Cluster-Achse in BEIDE Richtungen. Bis 0.10.0
+// war der Schluessel die Zeilennaehe, und A+B lagen deshalb auf zwei verschiedenen
+// Zitaten: Zeile 10 und 12 verschmolzen wegen der Toleranz von drei Zeilen. Genau das
+// war der Defekt -- mit neun Analysten verschluckte diese Toleranz eine ganze
+// Dateiregion. Seit der Schluessel das Zitat ist, beweist A+B die Verschmelzung nur
+// noch, wenn beide Analysten dasselbe Fragment zitieren; E beweist die Gegenrichtung,
+// die es vorher gar nicht gab. Ohne E wuerde eine Rueckkehr zur Zeilennaehe von dieser
+// Fixture nicht bemerkt.
 const A_LINES = [
   'package example;',                       // 1
   '',                                       // 2
@@ -128,11 +139,25 @@ export function makeBundleA(dir) {
 
   write(dir, 'findings/spec-fidelity.json', JSON.stringify([
     {
+      // Fall B: dasselbe Fragment wie gate-integrity, anders verankert. Das ist der
+      // Normalfall echter Ueberlappung -- und es ist die Konstellation, die das
+      // Kommentarbeispiel des Designs (Abschnitt 9.1) ohnehin schon zeigt: ein
+      // Kommentar, getaggt mit Gate-Integritaet UND Spec-Treue, ueber @Disabled.
       file: 'src/A.java', line: 12, side: 'RIGHT', severity: 'major',
       title: 'Kriterium 1 nicht abgedeckt',
-      problem: 'Die Assertion prueft nichts; Akzeptanzkriterium 1 bleibt ohne Absicherung.',
-      evidence: 'assertTrue(true);',
+      problem: 'Der stillgelegte Test war die einzige Absicherung von Akzeptanzkriterium 1.',
+      evidence: '@Disabled("flaky")',
       fix: 'Pruefe, dass eine Session aelter als 30 Minuten abgewiesen wird.',
+      confidence: 'hoch',
+    },
+    {
+      // Fall E: zwei Zeilen neben Fall A, aber ein anderes Zitat. Unter der alten
+      // Toleranz von drei Zeilen waere dieser Befund im Kommentar von A+B verschwunden.
+      file: 'src/A.java', line: 12, side: 'RIGHT', severity: 'major',
+      title: 'Tautologische Assertion',
+      problem: 'Die Assertion ist wahr, unabhaengig vom Verhalten des Codes.',
+      evidence: 'assertTrue(true);',
+      fix: 'Pruefe das Ergebnis von handle() statt einer Konstanten.',
       confidence: 'hoch',
     },
     {

@@ -89,3 +89,18 @@ test('LEFT-Seite wird gegen die LEFT-Map geprueft', () => {
   const bad = buildPayload([c({ side: 'LEFT', line: 12 })], { commentable, renderBody });
   assert.equal(bad.report.anchorless.length, 1);
 });
+
+test('zwei Kommentare am selben Anker stehen in einer von der Eingabe unabhaengigen Reihenfolge', () => {
+  // Seit der Gruppenschluessel das Zitat ist, ist das der Normalfall: zwei Analysten
+  // zitieren verschiedene Fragmente derselben Zeile. Severity, Analystenzahl, Datei und
+  // Zeile sind dann gleich, und ohne inhaltlichen Tiebreak entscheidet die
+  // Eingabereihenfolge, in welcher Reihenfolge die Kommentare im PR erscheinen -- zwei
+  // Laeufe mit denselben Befunden ergaeben verschiedene Reviews. Das ist die Reihenfolge,
+  // die tatsaechlich an die API geht; die Sortierung in clusterFindings genuegt nicht.
+  const eins = c({ id: 'aaaaaa' });
+  const zwei = c({ id: 'bbbbbb' });
+  const vor = buildPayload([eins, zwei], { commentable, renderBody }).report.posted.map((x) => x.id);
+  const rueck = buildPayload([zwei, eins], { commentable, renderBody }).report.posted.map((x) => x.id);
+  assert.deepEqual(vor, ['aaaaaa', 'bbbbbb']);
+  assert.deepEqual(rueck, vor);
+});
