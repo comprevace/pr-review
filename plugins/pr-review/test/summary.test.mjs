@@ -54,6 +54,17 @@ test('fehlende Spec und fehlende Tests werden benannt', () => {
   assert.match(s, /src\/A\.java/);
 });
 
+test('eine gekappte Nachbarschaft steht in der Bilanz, nicht nur in meta.json', () => {
+  // Nichts scheitert still. Wurde die Nachbarschaft abgeschnitten, hat consistency nur
+  // einen Ausschnitt des Verzeichnisses gesehen -- und "kein Musterbruch gefunden" ist
+  // dann keine Aussage ueber das Verzeichnis, sondern ueber acht Dateien daraus. Wer das
+  // nicht erfaehrt, liest die Bilanz vollstaendiger, als sie ist.
+  const s = renderSummary({ ...base, meta: { ...base.meta, siblings_truncated: ['src/main/java/app'] } });
+  assert.match(s, /Nachbarschaft/);
+  assert.match(s, /src\/main\/java\/app/);
+  assert.doesNotMatch(renderSummary(base), /Nachbarschaft/);
+});
+
 test('Zweitlauf-Bilanz erscheint nur mit verify-Daten', () => {
   assert.doesNotMatch(renderSummary(base), /behoben/);
   const s = renderSummary({ ...base, verify: { resolved: 7, stillOpen: 2, fresh: 1 } });

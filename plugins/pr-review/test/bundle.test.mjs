@@ -4,6 +4,7 @@ import { mkdtempSync, readFileSync, existsSync, writeFileSync, readdirSync } fro
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { bundlePathFor, testCandidates, resolveSpecPath, buildBundle, loadBundle } from '../lib/bundle.mjs';
+import { validateAll } from '../lib/findings.mjs';
 
 test('bundlePathFor liegt ausserhalb von ~/.claude und trennt Owner und Repo', () => {
   const p = bundlePathFor('example/demo', 55);
@@ -227,6 +228,126 @@ test('ein zweites fetch laesst keine veraltete Testdatei in tests/ stehen', asyn
 
   assert.deepEqual(summary.missingTests, ['src/a.ts']);
   assert.equal(existsSync(join(dir, 'tests/src/a.spec.ts')), false);
+});
+
+// PR 4: eine geaenderte Datei in src/, daneben Geschwister. Der Verzeichnis-Endpunkt
+// liefert ein Array, nicht ein Objekt mit content -- deshalb ein eigener Zweig.
+function siblingApi() {
+  return async (endpoint) => {
+    if (endpoint === '/repos/example/demo/pulls/4') {
+      return { number: 4, title: 't', body: '', user: { login: 'a' }, labels: [],
+        base: { sha: 'b' }, head: { sha: 'h', ref: 'x' } };
+    }
+    if (endpoint === '/repos/example/demo/pulls/4/files') {
+      return [{ filename: 'src/one.java', status: 'modified', additions: 1, deletions: 0, patch: '@@ -1 +1,2 @@\n keep\n+neu' }];
+    }
+    if (endpoint === '/repos/example/demo/pulls/4/comments') return [];
+    if (endpoint.startsWith('/repos/example/demo/contents/src?')) {
+      return [
+        { name: 'one.java', path: 'src/one.java', type: 'file', size: 100 },
+        { name: 'two.java', path: 'src/two.java', type: 'file', size: 100 },
+        { name: 'three.java', path: 'src/three.java', type: 'file', size: 100 },
+        { name: 'notes.md', path: 'src/notes.md', type: 'file', size: 100 },
+        { name: 'sub', path: 'src/sub', type: 'dir', size: 0 },
+      ];
+    }
+    if (endpoint.startsWith('/repos/example/demo/contents/src/one.java')) {
+      return { content: Buffer.from('keep\nneu\n').toString('base64'), encoding: 'base64' };
+    }
+    if (endpoint.startsWith('/repos/example/demo/contents/src/two.java')) {
+      return { content: Buffer.from('class Two { void handle() {} }\n').toString('base64'), encoding: 'base64' };
+    }
+    if (endpoint.startsWith('/repos/example/demo/contents/src/three.java')) {
+      return { content: Buffer.from('class Three { void handle() {} }\n').toString('base64'), encoding: 'base64' };
+    }
+    const err = new Error('Not Found'); err.status = 404; throw err;
+  };
+}
+
+test('buildBundle sammelt Geschwister gleicher Endung, aber nicht die geaenderte Datei selbst', async () => {
+  // consistency braucht die Nachbarschaft, um "drei Muster fuer dasselbe Problem" zu
+  // sehen -- ein Agent, der Story 7 baut, kennt Stories 1-6 nicht. Gleiche Endung, weil
+  // eine .md neben einer .java nichts ueber Muster im Code sagt und nur Kontext kostet.
+  const dir = join(mkdtempSync(join(tmpdir(), 'prr-sib-')), 'bundle');
+  await buildBundle({ repo: 'example/demo', number: 4, ghApi: siblingApi(), bundleDir: dir });
+
+  assert.ok(existsSync(join(dir, 'siblings/src/two.java')), 'Geschwister gleicher Endung fehlt');
+  assert.ok(existsSync(join(dir, 'siblings/src/three.java')));
+  assert.equal(existsSync(join(dir, 'siblings/src/notes.md')), false, 'andere Endung gehoert nicht ins Bundle');
+  assert.equal(existsSync(join(dir, 'siblings/src/one.java')), false, 'die geaenderte Datei liegt schon in files/');
+  assert.ok(existsSync(join(dir, 'files/src/one.java')));
+});
+
+test('Geschwister landen NICHT im Haystack — die Evidenzpflicht bleibt unangetastet', async () => {
+  // Die wichtigste Zusicherung dieser Erweiterung. Kaeme der Text der Geschwister in den
+  // Haystack, waere plötzlich Evidenz aus UNVERAENDERTEN Dateien auffindbar -- und die
+  // Regel, an der das ganze Konstrukt haengt ("kein Befund ohne Zitat aus einer
+  // geaenderten Datei"), waere fuer JEDEN Analysten aufgeweicht, nicht nur fuer
+  // consistency. Der Nachbarschaftskontext ist zum Verstehen da, nicht zum Zitieren.
+  const dir = join(mkdtempSync(join(tmpdir(), 'prr-sibhay-')), 'bundle');
+  await buildBundle({ repo: 'example/demo', number: 4, ghApi: siblingApi(), bundleDir: dir });
+
+  const b = loadBundle(dir);
+  assert.equal(b.fileText.get('src/two.java'), undefined, 'Geschwister darf nicht in fileText stehen');
+  assert.deepEqual(b.meta.files.map((f) => f.path), ['src/one.java'], 'Geschwister darf nicht in meta.files stehen');
+
+  // Und die Gegenprobe an der echten Maschinerie statt nur an der Datenstruktur.
+  const haystacks = new Map(b.meta.files.map((f) => [f.path,
+    `${b.fileText.get(f.path) ?? ''}\n${b.patchText.get(f.path) ?? ''}`]));
+  const analysts = new Map([['consistency', { name: 'consistency', severity_max: 'major' }]]);
+  const { accepted, rejected } = validateAll(new Map([['consistency', [{
+    file: 'src/two.java', line: 1, side: 'RIGHT', severity: 'major',
+    title: 'Zitat aus einem Geschwister', problem: 'p',
+    evidence: 'class Two { void handle() {} }', fix: 'f', confidence: 'hoch',
+  }]]]), { analysts, haystacks, knownFiles: new Set(b.meta.files.map((f) => f.path)) });
+  assert.equal(accepted.length, 0);
+  assert.match(rejected[0].reason, /nicht im Diff/);
+});
+
+test('ein zweites fetch laesst kein veraltetes Geschwister stehen', async () => {
+  const dir = join(mkdtempSync(join(tmpdir(), 'prr-sibstale-')), 'bundle');
+  await buildBundle({ repo: 'example/demo', number: 4, ghApi: siblingApi(), bundleDir: dir });
+  assert.ok(existsSync(join(dir, 'siblings/src/two.java')));
+
+  // Runde 2: two.java gibt es nicht mehr, three.java schon.
+  const api2 = async (endpoint) => {
+    if (endpoint.startsWith('/repos/example/demo/contents/src?')) {
+      return [
+        { name: 'one.java', path: 'src/one.java', type: 'file', size: 100 },
+        { name: 'three.java', path: 'src/three.java', type: 'file', size: 100 },
+      ];
+    }
+    return siblingApi()(endpoint);
+  };
+  await buildBundle({ repo: 'example/demo', number: 4, ghApi: api2, bundleDir: dir });
+
+  assert.equal(existsSync(join(dir, 'siblings/src/two.java')), false, 'verschwundenes Geschwister muss weg sein');
+  assert.ok(existsSync(join(dir, 'siblings/src/three.java')));
+});
+
+test('die Geschwister-Kappung wird gemeldet, nicht stillschweigend angewandt', async () => {
+  // Nichts scheitert still: wer nicht weiss, dass die Nachbarschaft abgeschnitten wurde,
+  // haelt "kein Musterbruch gefunden" fuer eine Aussage ueber das Verzeichnis.
+  const viele = Array.from({ length: 20 }, (_, i) => ({
+    name: `f${i}.java`, path: `src/f${i}.java`, type: 'file', size: 10,
+  }));
+  const api = async (endpoint) => {
+    if (endpoint.startsWith('/repos/example/demo/contents/src?')) {
+      return [{ name: 'one.java', path: 'src/one.java', type: 'file', size: 10 }, ...viele];
+    }
+    if (/\/contents\/src\/f\d+\.java/.test(endpoint)) {
+      return { content: Buffer.from('class X {}\n').toString('base64'), encoding: 'base64' };
+    }
+    return siblingApi()(endpoint);
+  };
+  const dir = join(mkdtempSync(join(tmpdir(), 'prr-sibcap-')), 'bundle');
+  const summary = await buildBundle({ repo: 'example/demo', number: 4, ghApi: api, bundleDir: dir });
+
+  const meta = JSON.parse(readFileSync(join(dir, 'meta.json'), 'utf8'));
+  assert.ok(meta.siblings.length > 0, 'gesammelte Geschwister gehoeren in meta.json');
+  assert.ok(meta.siblings.length < 20, 'die Kappung muss greifen');
+  assert.deepEqual(meta.siblings_truncated, ['src'], 'das gekappte Verzeichnis muss benannt sein');
+  assert.equal(summary.siblings, meta.siblings.length);
 });
 
 test('ein abgebrochenes fetch laesst das alte Bundle unangetastet', async () => {

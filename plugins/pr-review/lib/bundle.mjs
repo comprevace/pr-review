@@ -63,7 +63,24 @@ function writeUnder(dir, relPath, content) {
 // nicht bloss Muell: beide bilden den Haystack, gegen den Bedingung (2) prueft. Ein
 // veralteter Stand haelt jedes Zitat auffindbar, und ein wirklich behobener Befund
 // loest nie auf. tests/ liegt nicht im Haystack, wird aber von den Analysten gelesen.
-const STAGED_DIRS = ['files', 'patches', 'tests'];
+const STAGED_DIRS = ['files', 'patches', 'tests', 'siblings'];
+
+// Geschwister: Dateien im selben Verzeichnis wie eine geaenderte Datei. Sie existieren
+// fuer genau einen Analysten (consistency) -- ein Agent, der Story 7 baut, kennt Stories
+// 1-6 nicht, und ob es fuer dasselbe Problem schon ein Muster gibt, ist aus dem Diff
+// allein nicht zu sehen.
+//
+// Drei Begrenzungen, jede aus einem eigenen Grund:
+//   - nur gleiche Endung: eine .md neben einer .java sagt nichts ueber Codemuster und
+//     kostet nur Kontext
+//   - Deckel je Verzeichnis: ein Verzeichnis mit 200 Dateien wuerde das Bundle und die
+//     Kosten sprengen; E2 des Designs will die Kosten an der Diffgroesse halten
+//   - Groessendeckel je Datei: eine generierte Riesendatei traegt kein Muster bei
+// Was der Deckel abschneidet, wird in meta.json benannt. Wer nicht weiss, dass die
+// Nachbarschaft gekappt wurde, haelt "kein Musterbruch gefunden" fuer eine Aussage
+// ueber das Verzeichnis.
+const MAX_SIBLINGS_PER_DIR = 8;
+const MAX_SIBLING_BYTES = 100_000;
 
 // Gestaged wird INNERHALB des Bundle-Verzeichnisses, damit das Umschalten ein rename
 // auf demselben Dateisystem bleibt und nicht ueber Verzeichnisse hinweg kopiert.
@@ -92,6 +109,58 @@ async function fetchText(ghApi, repo, path, ref) {
     if (err.status === 404) return null;
     throw err;
   }
+}
+
+// Der Verzeichnis-Endpunkt liefert ein Array, der Datei-Endpunkt ein Objekt mit content.
+// Deshalb nicht ueber fetchText: das wuerde ein Listing stillschweigend als "nicht
+// gefunden" behandeln, und die ganze Nachbarschaft bliebe unbemerkt leer.
+async function fetchDirListing(ghApi, repo, dir, ref) {
+  const path = dir === '.' || dir === '' ? '' : `/${encodeURI(dir)}`;
+  try {
+    const res = await ghApi(`/repos/${repo}/contents${path}?ref=${ref}`);
+    return Array.isArray(res) ? res : [];
+  } catch (err) {
+    if (err.status === 404) return [];
+    throw err;
+  }
+}
+
+// Nachbarschaft der geaenderten Dateien einsammeln. Geloeschte Dateien bringen keine
+// Nachbarschaft ein: ihr Verzeichnis interessiert nur, wenn dort noch etwas steht, und
+// das kommt ueber die anderen geaenderten Dateien mit.
+async function collectSiblings({ ghApi, repo, headSha, staging, files, changedPaths }) {
+  const collected = [];
+  const truncated = [];
+  const dirs = [...new Set(
+    files.filter((f) => f.status !== 'removed').map((f) => dirname(f.path)),
+  )].sort();
+
+  for (const dir of dirs) {
+    // Nur Endungen, die in diesem Verzeichnis auch wirklich geaendert wurden. Sonst
+    // holte ein geaendertes .java in einem gemischten Verzeichnis auch die .ts-Nachbarn
+    // mit, und consistency verglichen Muster ueber Sprachgrenzen hinweg.
+    const extsInDir = new Set(
+      files.filter((f) => f.status !== 'removed' && dirname(f.path) === dir)
+        .map((f) => extname(f.path))
+        .filter((e) => e !== ''),
+    );
+    if (extsInDir.size === 0) continue;
+
+    const entries = await fetchDirListing(ghApi, repo, dir, headSha);
+    const wanted = entries.filter((e) => e.type === 'file'
+      && !changedPaths.has(e.path)
+      && extsInDir.has(extname(e.name))
+      && (e.size ?? 0) <= MAX_SIBLING_BYTES);
+
+    if (wanted.length > MAX_SIBLINGS_PER_DIR) truncated.push(dir);
+    for (const entry of wanted.slice(0, MAX_SIBLINGS_PER_DIR)) {
+      const text = await fetchText(ghApi, repo, entry.path, headSha);
+      if (text === null) continue;
+      writeUnder(staging, join('siblings', entry.path), text);
+      collected.push(entry.path);
+    }
+  }
+  return { collected, truncated };
 }
 
 export async function buildBundle({ repo, number, ghApi, bundleDir }) {
@@ -182,6 +251,8 @@ async function fetchInto({ repo, number, ghApi, dir, staging }) {
   const conventions = await fetchText(ghApi, repo, 'CLAUDE.md', headSha);
   writeUnder(dir, 'conventions.md', conventions ?? '');
 
+  const siblings = await collectSiblings({ ghApi, repo, headSha, staging, files, changedPaths });
+
   const comments = await ghApi(`/repos/${repo}/pulls/${number}/comments`, { paginate: true });
   writeUnder(dir, 'previous.json', JSON.stringify(comments ?? [], null, 2));
 
@@ -205,6 +276,12 @@ async function fetchInto({ repo, number, ghApi, dir, staging }) {
     spec_missing: specText === null,
     conventions_missing: conventions === null,
     missing_tests: missingTests,
+    // Bewusst NEBEN files, nicht darin. files ist die Liste der geaenderten Dateien und
+    // speist knownFiles und die Haystacks der Evidenzpruefung. Ein Geschwister dort
+    // einzutragen wuerde Zitate aus UNVERAENDERTEN Dateien gueltig machen und die
+    // Evidenzpflicht fuer jeden Analysten aufweichen, nicht nur fuer consistency.
+    siblings: siblings.collected,
+    siblings_truncated: siblings.truncated,
     files,
   };
   writeUnder(dir, 'meta.json', JSON.stringify(meta, null, 2));
@@ -219,7 +296,11 @@ async function fetchInto({ repo, number, ghApi, dir, staging }) {
   rmSync(join(dir, 'findings'), { recursive: true, force: true });
   mkdirSync(join(dir, 'findings'), { recursive: true });
 
-  return { dir, files: files.length, changedLines, specLink: meta.spec_link, missingTests, patchMissing };
+  return {
+    dir, files: files.length, changedLines, specLink: meta.spec_link, missingTests, patchMissing,
+    siblings: siblings.collected.length,
+    siblingsTruncated: siblings.truncated,
+  };
 }
 
 function walk(root, prefix = '') {

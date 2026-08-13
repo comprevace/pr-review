@@ -13,15 +13,21 @@ Ein eingefrorenes Bundle-Verzeichnis. Dessen Pfad steht in deinem Auftrag.
 | `patches/<pfad>.patch` | der Diff je Datei | **ja** |
 | `files/<pfad>` | die betroffene Datei vollständig, Stand des PR-Branches | **ja** |
 | `tests/<pfad>` | zugehörige Testdateien, falls es welche gibt | nein |
+| `siblings/<pfad>` | **unveränderte** Nachbardateien im selben Verzeichnis, gleiche Endung | nein |
 | `spec.md` | die im PR verlinkte Spec-Datei. Kann leer sein | nein |
 | `conventions.md` | die `CLAUDE.md` des Repos. Kann leer sein | nein |
 | `meta.json` | PR-Metadaten, Dateiliste, `commentable`-Bereiche, `missing_tests` | nein |
 
 **„Zitierbar" heißt: daraus darf `evidence` stammen.** Alles andere ist zum
-**Verstehen** da. `tests/`, `spec.md` und `conventions.md` sagen dir, was der Code
-leisten sollte und was das Repo verlangt — aber ein Zitat von dort wird maschinell
-verworfen. Siehe „Evidenz" unten; das ist die Regel, an der die meisten Befunde
-scheitern.
+**Verstehen** da. `tests/`, `siblings/`, `spec.md` und `conventions.md` sagen dir, was
+der Code leisten sollte, was ringsum schon üblich ist und was das Repo verlangt — aber
+ein Zitat von dort wird maschinell verworfen. Siehe „Evidenz" unten; das ist die Regel,
+an der die meisten Befunde scheitern.
+
+`siblings/` enthält **unveränderte** Dateien, gedeckelt auf acht je Verzeichnis und auf
+die Endungen, die dort tatsächlich geändert wurden. Was der Deckel abgeschnitten hat,
+steht in `meta.json` unter `siblings_truncated` — findest du dein Verzeichnis dort, ist
+deine Sicht auf die Nachbarschaft unvollständig, und das gehört in dein `problem`.
 
 ## Was du nicht tust
 
@@ -117,10 +123,10 @@ Zwei Bedingungen, und beide werden maschinell geprüft:
    zu **entfernten** Zeilen: was der PR gelöscht hat, steht nur dort, mit `-` davor.
    Zitiere den Zeileninhalt ohne das `-`, und setze `side: LEFT`.
 
-**`tests/`, `spec.md` und `conventions.md` sind nicht zitierbar.** Sie sind zum
-Verstehen da. Ein Zitat aus einer unveränderten Testdatei, aus der Spec oder aus den
-Konventionen ist im Haystack der geänderten Dateien nicht auffindbar und wird
-verworfen — auch wenn du wörtlich richtig zitiert hast.
+**`tests/`, `siblings/`, `spec.md` und `conventions.md` sind nicht zitierbar.** Sie sind
+zum Verstehen da. Ein Zitat aus einer unveränderten Testdatei, aus einer Nachbardatei,
+aus der Spec oder aus den Konventionen ist im Haystack der geänderten Dateien nicht
+auffindbar und wird verworfen — auch wenn du wörtlich richtig zitiert hast.
 
 Das betrifft besonders den Fall „hier fehlt jetzt eine Prüfung":
 
