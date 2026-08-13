@@ -9,7 +9,7 @@ const ROOT = join(import.meta.dirname, '..');
 test('die generischen Analysten laden fehlerfrei', () => {
   const list = loadAnalysts([join(ROOT, 'analysts')]);
   const names = list.map((a) => a.name).sort();
-  assert.deepEqual(names, ['consistency', 'gate-integrity', 'security-context', 'spec-fidelity', 'test-substance']);
+  assert.deepEqual(names, ['consistency', 'gate-integrity', 'rationale', 'security-context', 'spec-fidelity', 'test-substance']);
 });
 
 test('alle laufen immer und haben sinnvolle Severity-Deckel', () => {
@@ -33,13 +33,41 @@ test('alle laufen immer und haben sinnvolle Severity-Deckel', () => {
   // denen wirklich etwas offen steht.
   assert.equal(byName.get('consistency').when, 'always');
   assert.equal(byName.get('consistency').severity_max, 'major');
+  // Der einzige mit Deckel minor. Ein fehlendes Warum haelt niemanden auf -- es kostet
+  // erst den naechsten Leser, und zwar dann richtig.
+  assert.equal(byName.get('rationale').when, 'always');
+  assert.equal(byName.get('rationale').severity_max, 'minor');
 });
 
 test('alle laufen auch bei einem Diff ohne passende Endung', () => {
   const list = loadAnalysts([join(ROOT, 'analysts')]);
   const { selected, skipped } = selectAnalysts(list, ['README.md']);
-  assert.equal(selected.length, 5);
+  assert.equal(selected.length, 6);
   assert.deepEqual(skipped, []);
+});
+
+test('rationale lehrt keine Severity-Luege, um niedriges Vertrauen durchzubekommen', () => {
+  // Der einzige Analyst, bei dem die Vertrauensregel wirklich beisst. Nachgemessen an der
+  // Maschinerie: minor + niedrig wird verworfen, major + niedrig kommt DURCH und wird auf
+  // minor gedeckelt. Damit existiert ein Schleichweg -- Severity aufblasen, um einen
+  // unsicheren Befund unterzubringen -- und ein Prompt, der ihn empfiehlt, wuerde die
+  // Severity-Leiter fuer alle entwerten. Der Prompt muss den Weg benennen UND verbieten.
+  const byName = new Map(loadAnalysts([join(ROOT, 'analysts')]).map((a) => [a.name, a]));
+  const body = byName.get('rationale').body;
+  assert.match(body, /niedrig/, 'muss die Vertrauensregel ansprechen');
+  assert.match(body, /schweig|weglassen|nicht melden/i, 'muss Schweigen als Ausweg nennen');
+  assert.match(body, /Severity-Lüge|Severity-Luege|nicht.*aufblasen|nicht.*höher melden/i,
+    'muss das Aufblaeen der Severity ausdruecklich verbieten');
+});
+
+test('rationale grenzt sich gegen consistency und gate-integrity ab', () => {
+  // consistency fragt, ob etwas ANDERS ist; rationale, ob es ERKLAERT ist -- dieselbe
+  // Zeile kann beides sein. Und ein neues @SuppressWarnings ohne Begruendung gehoert
+  // bereits gate-integrity, der es genau danach unterscheidet.
+  const byName = new Map(loadAnalysts([join(ROOT, 'analysts')]).map((a) => [a.name, a]));
+  const abgrenzung = byName.get('rationale').body.split('NICHT deine Sache')[1] ?? '';
+  assert.match(abgrenzung, /consistency/);
+  assert.match(abgrenzung, /gate-integrity/);
 });
 
 test('consistency sagt, dass aus siblings/ nicht zitiert werden darf', () => {
