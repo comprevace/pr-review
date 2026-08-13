@@ -9,7 +9,7 @@ const ROOT = join(import.meta.dirname, '..');
 test('die generischen Analysten laden fehlerfrei', () => {
   const list = loadAnalysts([join(ROOT, 'analysts')]);
   const names = list.map((a) => a.name).sort();
-  assert.deepEqual(names, ['consistency', 'gate-integrity', 'rationale', 'security-context', 'spec-fidelity', 'test-substance']);
+  assert.deepEqual(names, ['consistency', 'gate-integrity', 'java-spring', 'rationale', 'security-context', 'spec-fidelity', 'test-substance']);
 });
 
 test('alle laufen immer und haben sinnvolle Severity-Deckel', () => {
@@ -39,11 +39,54 @@ test('alle laufen immer und haben sinnvolle Severity-Deckel', () => {
   assert.equal(byName.get('rationale').severity_max, 'minor');
 });
 
-test('alle laufen auch bei einem Diff ohne passende Endung', () => {
+test('die sechs Kern-Analysten laufen auch bei einem Diff ohne passende Endung', () => {
   const list = loadAnalysts([join(ROOT, 'analysts')]);
   const { selected, skipped } = selectAnalysts(list, ['README.md']);
   assert.equal(selected.length, 6);
+  // java-spring ist der erste bedingte Analyst im Roster. Dass er hier NICHT laeuft und
+  // stattdessen namentlich mit Grund in der Ausfallliste steht, ist der ganze Sinn von
+  // when: paths -- und die Zeile, die spaeter in der Bilanz erklaert, warum das Review
+  // schmaler ist, als das Roster vermuten laesst.
+  assert.deepEqual(skipped, [
+    { name: 'java-spring', reason: 'kein Pfad im Diff passt auf **/*.java' },
+  ]);
+});
+
+test('java-spring laeuft, sobald eine Java-Datei im Diff steht', () => {
+  const list = loadAnalysts([join(ROOT, 'analysts')]);
+  const { selected, skipped } = selectAnalysts(list, ['src/main/java/app/Foo.java']);
+  assert.equal(selected.length, 7);
   assert.deepEqual(skipped, []);
+});
+
+test('java-spring haengt am Pfad und deckelt bei major', () => {
+  const byName = new Map(loadAnalysts([join(ROOT, 'analysts')]).map((a) => [a.name, a]));
+  const a = byName.get('java-spring');
+  assert.equal(a.when, 'paths');
+  assert.deepEqual(a.paths, ['**/*.java']);
+  assert.equal(a.severity_max, 'major');
+});
+
+test('java-spring sagt, was er ohne Manifest nicht wissen kann', () => {
+  // Der Analyst empfiehlt Framework-Mittel. Ob das jeweilige Mittel ueberhaupt auf dem
+  // Classpath liegt, steht im Manifest -- und in einem mehrmodulmodularen Projekt kann
+  // genau das Modul-Manifest fehlen, weil nur die Wurzel geholt wird. Ein Analyst, der
+  // das nicht sagt, empfiehlt @Cacheable in ein Projekt ohne Cache-Starter.
+  const byName = new Map(loadAnalysts([join(ROOT, 'analysts')]).map((a) => [a.name, a]));
+  const body = byName.get('java-spring').body;
+  assert.match(body, /manifests\//, 'muss die Manifestdatei als Quelle benennen');
+  assert.match(body, /Classpath|classpath/, 'muss den Classpath-Vorbehalt benennen');
+  assert.match(body, /niedrig/, 'muss den Weg ueber gesenktes Vertrauen benennen');
+});
+
+test('java-spring grenzt sich gegen consistency und die deterministischen Werkzeuge ab', () => {
+  // consistency besitzt "eigene Hilfsfunktion neben einer vorhandenen" -- aber
+  // repo-lokal. Hier liegt das Vorhandene im FRAMEWORK, nicht im Repo. Ohne die
+  // ausdrueckliche Grenze meldet jeder von beiden dieselbe Zeile.
+  const byName = new Map(loadAnalysts([join(ROOT, 'analysts')]).map((a) => [a.name, a]));
+  const abgrenzung = byName.get('java-spring').body.split('NICHT deine Sache')[1] ?? '';
+  assert.match(abgrenzung, /consistency/);
+  assert.match(abgrenzung, /Error Prone|Spotless|Linter|Compiler/i);
 });
 
 test('rationale lehrt keine Severity-Luege, um niedriges Vertrauen durchzubekommen', () => {
@@ -156,11 +199,14 @@ test('der Kontrakt verspricht keine Evidenz, die der Validator verwirft', () => 
   assert.match(contract, /geänderten Dateien aus `meta\.json`/);
   assert.match(contract, /files\/<file>/);
   assert.match(contract, /patches\/<file>\.patch/);
-  assert.match(contract, /sind nicht zitierbar\.\*\*/);
+  // \s+ statt Leerzeichen: der Satz zaehlt inzwischen fuenf Quellen auf und bricht um.
+  // Ein Test, der am Zeilenumbruch scheitert, prueft die Formatierung statt der Aussage.
+  assert.match(contract, /sind nicht\s+zitierbar\.\*\*/);
   // siblings/ ist die juengste und gefaehrlichste Ergaenzung: es enthaelt UNVERAENDERTE
   // Dateien. Fehlte es in dieser Aufzaehlung, waere der Kontrakt an der Stelle falsch,
   // an der er am meisten gilt.
   assert.match(contract, /`siblings\/`/);
+  assert.match(contract, /`manifests\/`/);
   assert.match(contract, /Verstehen/);
 });
 
