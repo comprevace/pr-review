@@ -83,6 +83,16 @@ export function renderSummary(input) {
   if (meta?.missing_tests?.length) {
     gaps.push(`Ohne zugehörige Testdatei: ${meta.missing_tests.map((f) => `\`${f}\``).join(', ')}`);
   }
+  // Eine gekappte Nachbarschaft aendert, wie die Bilanz zu lesen ist: Stimmigkeit hat
+  // dort nur einen Ausschnitt des Verzeichnisses gesehen, und "kein Musterbruch" ist dann
+  // keine Aussage ueber das Verzeichnis. In meta.json allein erreicht das niemanden, der
+  // die Bilanz liest.
+  if (meta?.siblings_truncated?.length) {
+    gaps.push(
+      `Nachbarschaft gekappt in: ${meta.siblings_truncated.map((d) => `\`${d}\``).join(', ')} — `
+      + 'Stimmigkeit sah dort nur einen Ausschnitt des Verzeichnisses.',
+    );
+  }
   if (gaps.length > 0) {
     out.push('**Lücken in der Eingabe**', '', bullet(gaps), '');
   }

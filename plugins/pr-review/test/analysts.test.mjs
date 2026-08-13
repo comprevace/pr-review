@@ -9,7 +9,7 @@ const ROOT = join(import.meta.dirname, '..');
 test('die generischen Analysten laden fehlerfrei', () => {
   const list = loadAnalysts([join(ROOT, 'analysts')]);
   const names = list.map((a) => a.name).sort();
-  assert.deepEqual(names, ['gate-integrity', 'security-context', 'spec-fidelity', 'test-substance']);
+  assert.deepEqual(names, ['consistency', 'gate-integrity', 'security-context', 'spec-fidelity', 'test-substance']);
 });
 
 test('alle laufen immer und haben sinnvolle Severity-Deckel', () => {
@@ -28,13 +28,30 @@ test('alle laufen immer und haben sinnvolle Severity-Deckel', () => {
   // Security-Action und muss deren Gewicht tragen koennen.
   assert.equal(byName.get('security-context').when, 'always');
   assert.equal(byName.get('security-context').severity_max, 'blocker');
+  // major, nicht blocker: ein Musterbruch macht die Codebasis unlernbar, haehlt aber
+  // nichts aus. Wer ihn zum blocker erklaert, entwertet die Stufe fuer die Faelle, in
+  // denen wirklich etwas offen steht.
+  assert.equal(byName.get('consistency').when, 'always');
+  assert.equal(byName.get('consistency').severity_max, 'major');
 });
 
 test('alle laufen auch bei einem Diff ohne passende Endung', () => {
   const list = loadAnalysts([join(ROOT, 'analysts')]);
   const { selected, skipped } = selectAnalysts(list, ['README.md']);
-  assert.equal(selected.length, 4);
+  assert.equal(selected.length, 5);
   assert.deepEqual(skipped, []);
+});
+
+test('consistency sagt, dass aus siblings/ nicht zitiert werden darf', () => {
+  // Er ist der einzige Analyst, fuer den die Nachbarschaft ueberhaupt geholt wird -- und
+  // damit der einzige, der ernsthaft in Versuchung kommt, sie zu zitieren. Genau das
+  // verwirft die Maschinerie, weil ein Geschwister keine geaenderte Datei ist. Ohne den
+  // Hinweis im eigenen Prompt produziert er systematisch Ausschuss.
+  const byName = new Map(loadAnalysts([join(ROOT, 'analysts')]).map((a) => [a.name, a]));
+  const body = byName.get('consistency').body;
+  assert.match(body, /siblings\//, 'muss das Verzeichnis benennen');
+  assert.match(body, /nicht zitier|verworfen/i, 'muss sagen, dass von dort kein Zitat stammen darf');
+  assert.match(body, /geänderte|geaenderte/i, 'muss auf die geaenderte Datei als Anker verweisen');
 });
 
 test('security-context haelt sich von dem fern, was ein Scanner deterministisch prueft', () => {
@@ -111,7 +128,11 @@ test('der Kontrakt verspricht keine Evidenz, die der Validator verwirft', () => 
   assert.match(contract, /geänderten Dateien aus `meta\.json`/);
   assert.match(contract, /files\/<file>/);
   assert.match(contract, /patches\/<file>\.patch/);
-  assert.match(contract, /\*\*`tests\/`, `spec\.md` und `conventions\.md` sind nicht zitierbar\.\*\*/);
+  assert.match(contract, /sind nicht zitierbar\.\*\*/);
+  // siblings/ ist die juengste und gefaehrlichste Ergaenzung: es enthaelt UNVERAENDERTE
+  // Dateien. Fehlte es in dieser Aufzaehlung, waere der Kontrakt an der Stelle falsch,
+  // an der er am meisten gilt.
+  assert.match(contract, /`siblings\/`/);
   assert.match(contract, /Verstehen/);
 });
 
