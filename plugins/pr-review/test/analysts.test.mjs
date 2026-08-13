@@ -9,7 +9,7 @@ const ROOT = join(import.meta.dirname, '..');
 test('die generischen Analysten laden fehlerfrei', () => {
   const list = loadAnalysts([join(ROOT, 'analysts')]);
   const names = list.map((a) => a.name).sort();
-  assert.deepEqual(names, ['consistency', 'gate-integrity', 'java-spring', 'rationale', 'security-context', 'spec-fidelity', 'test-substance']);
+  assert.deepEqual(names, ['consistency', 'gate-integrity', 'java-spring', 'rationale', 'security-context', 'spec-fidelity', 'test-substance', 'vue-ts']);
 });
 
 test('alle laufen immer und haben sinnvolle Severity-Deckel', () => {
@@ -49,6 +49,7 @@ test('die sechs Kern-Analysten laufen auch bei einem Diff ohne passende Endung',
   // schmaler ist, als das Roster vermuten laesst.
   assert.deepEqual(skipped, [
     { name: 'java-spring', reason: 'kein Pfad im Diff passt auf **/*.java' },
+    { name: 'vue-ts', reason: 'kein Pfad im Diff passt auf **/*.vue, **/*.ts' },
   ]);
 });
 
@@ -56,7 +57,49 @@ test('java-spring laeuft, sobald eine Java-Datei im Diff steht', () => {
   const list = loadAnalysts([join(ROOT, 'analysts')]);
   const { selected, skipped } = selectAnalysts(list, ['src/main/java/app/Foo.java']);
   assert.equal(selected.length, 7);
-  assert.deepEqual(skipped, []);
+  assert.deepEqual(skipped.map((s) => s.name), ['vue-ts']);
+});
+
+test('vue-ts laeuft bei .vue UND bei .ts', () => {
+  // Zwei getrennte Globs statt **/*.{vue,ts}: die Skip-Meldung nennt dann beide
+  // Endungen einzeln, und die Auswahl haengt an keiner Brace-Unterstuetzung.
+  const list = loadAnalysts([join(ROOT, 'analysts')]);
+  for (const pfad of ['src/components/Foo.vue', 'src/api/client.ts']) {
+    const { selected } = selectAnalysts(list, [pfad]);
+    assert.ok(selected.some((a) => a.name === 'vue-ts'), `vue-ts fehlt bei ${pfad}`);
+  }
+});
+
+test('vue-ts haengt am Pfad und deckelt bei major', () => {
+  const byName = new Map(loadAnalysts([join(ROOT, 'analysts')]).map((a) => [a.name, a]));
+  const a = byName.get('vue-ts');
+  assert.equal(a.when, 'paths');
+  assert.deepEqual(a.paths, ['**/*.vue', '**/*.ts']);
+  assert.equal(a.severity_max, 'major');
+});
+
+test('vue-ts prueft die Vue-Version, bevor es ein Mittel empfiehlt', () => {
+  // Haerter als bei Spring: mehrere Empfehlungen haengen an der Minor-Version.
+  // defineModel gibt es erst ab 3.4; ob das Destrukturieren von props die Reaktivitaet
+  // verliert, haengt ebenfalls an der Version. Ein Analyst, der das nicht nachsieht,
+  // empfiehlt etwas, das im Projekt nicht existiert -- oder meldet einen Befund, den
+  // die eingesetzte Version gar nicht mehr hat.
+  const byName = new Map(loadAnalysts([join(ROOT, 'analysts')]).map((a) => [a.name, a]));
+  const body = byName.get('vue-ts').body;
+  assert.match(body, /manifests\//, 'muss package.json als Quelle benennen');
+  assert.match(body, /Version/, 'muss die Versionsabhaengigkeit benennen');
+  assert.match(body, /niedrig/, 'muss den Weg ueber gesenktes Vertrauen benennen');
+});
+
+test('vue-ts ueberlaesst dem Linter, was der Linter kann', () => {
+  // Bei Vue ist die Prinzip-2-Spannung groesser als bei Spring: eslint-plugin-vue deckt
+  // in den empfohlenen Regelsaetzen einen erheblichen Teil der Konventionen ab. Ein
+  // Analyst, der dieselben Regeln nachmeldet, erzeugt Doppelbefunde zu einem Werkzeug,
+  // das es deterministisch und vollstaendiger kann.
+  const byName = new Map(loadAnalysts([join(ROOT, 'analysts')]).map((a) => [a.name, a]));
+  const abgrenzung = byName.get('vue-ts').body.split('NICHT deine Sache')[1] ?? '';
+  assert.match(abgrenzung, /eslint-plugin-vue|ESLint/i);
+  assert.match(abgrenzung, /consistency/);
 });
 
 test('java-spring haengt am Pfad und deckelt bei major', () => {
