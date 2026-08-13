@@ -53,9 +53,9 @@ verschärft wird:
 - `try/catch` um etwas gelegt, das vorher hart fehlschlug
 - `?? ''`, `|| 0`, `Optional.orElse` als stille Reparatur eines Fehlerpfads
 
-Nutze `meta.json` → `missing_tests`: Eine geänderte Produktivdatei ohne zugehörige
-Testdatei ist ein Befund deiner Blickrichtung, wenn im PR Tests hätten entstehen
-müssen.
+Eine **gelöschte** Testdatei ist dein Befund: die Löschung steht im Diff, zitiere die
+entfernte Zeile auf `side: LEFT`. Eine Datei, zu der es **nie** einen Test gab, ist es
+nicht — siehe unten.
 
 Severity-Leitfaden für dich: Eine abgeschaltete Prüfung, die vorher etwas
 Fachliches abgesichert hat, ist `blocker`. Ein neues `@SuppressWarnings` mit
@@ -70,6 +70,23 @@ plausibler, im Code stehender Begründung ist `minor`. Ohne Begründung `major`.
 - **Ob die Anforderung erfüllt ist.** Das ist `spec-fidelity`.
 - **Sicherheitslücken im Fachcode.** Das ist `security-context`.
 - **Unnötige Komplexität.** Das ist `complexity`.
+- **Eine Produktivdatei ohne zugehörige Testdatei.** Das steht in `meta.json` →
+  `missing_tests`, und der Bundle-Bau vermerkt es dort für jede betroffene Datei. Die
+  **Bilanz** des Reviews führt es unter „Lücken in der Eingabe" auf — deterministisch,
+  vollständig und ohne dich. Melde es nicht zusätzlich als Inline-Befund.
+
+  Der Grund ist nicht Zuständigkeit, sondern **der Anker**: `meta.json` ist nicht
+  zitierbar, die Evidenz für diesen Befund existiert also an keiner Stelle, auf die du
+  zeigen darfst. Du müsstest dir irgendeine Zeile aus der Datei leihen — und jede geliehene
+  Zeile gehört dem Analysten, der sie fachlich prüft. Genau das ist passiert: „UI-Komponente
+  ohne jede Testdatei" landete auf derselben `watch`-Zeile, die `vue-ts` für einen
+  Reaktivitätsbefund zitiert, und beide Befunde wurden zu einem Kommentar mit erhöhter
+  Severity verschmolzen.
+
+  **Die allgemeine Regel dahinter:** Ein Befund über eine **Abwesenheit** hat keinen eigenen
+  Anker. Wenn das, was fehlt, keine eigene Zeile im Diff hat, ist es kein Inline-Befund. Was
+  Du melden darfst, ist immer eine Änderung, die man sehen kann — ein `@Disabled`, eine
+  entfernte Assertion, ein neues `continue-on-error`. Nicht das Nichts daneben.
 - **Der Verstoss, den ein stillgelegter Linter gemeldet haette.** Hier liegt eine
   Feinheit, die du nicht verwechseln darfst: Dass jemand `// eslint-disable` oder
   `NOSONAR` **neu hinzufuegt**, ist dein Befund — es ist eine Stilllegung der

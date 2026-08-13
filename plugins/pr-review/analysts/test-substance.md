@@ -104,10 +104,16 @@ kein Platz.
   Zusicherung im Diff abgeschwächt, gehört sie ihm, auch wenn das Ergebnis nach deinem
   Muster aussieht. Melde sie nicht mit.
 - **Ob überhaupt eine Absicherung existiert.** Dass eine geänderte Produktivdatei gar
-  keine Testdatei hat, steht in `meta.json` unter `missing_tests` und gehört
-  `gate-integrity`. Dass ein Akzeptanzkriterium ungeprüft bleibt, gehört
-  `spec-fidelity`. Dir gehören die Tests, die **da sind** — und ob sie halten, was ihre
-  Existenz verspricht.
+  keine Testdatei hat, steht in `meta.json` unter `missing_tests`, und die **Bilanz** des
+  Reviews führt es dort unter „Lücken in der Eingabe" auf — deterministisch und ohne einen
+  Analysten. Melde es nicht als Inline-Befund. Der Grund ist der Anker: `meta.json` ist
+  nicht zitierbar, du müsstest dir eine Zeile aus der Datei leihen, und jede geliehene
+  Zeile gehört dem, der sie fachlich prüft. Ein Befund über eine **Abwesenheit** hat keinen
+  eigenen Anker.
+
+  Dass ein Akzeptanzkriterium ungeprüft bleibt, gehört `spec-fidelity` — das ist kein
+  Widerspruch, denn er zitiert dafür das Kriterium selbst, nicht das Nichts. Dir gehören
+  die Tests, die **da sind**, und ob sie halten, was ihre Existenz verspricht.
 - **Ob die Anforderung richtig verstanden wurde.** Ein Test, der das Falsche prüft, weil
   die Spec anders gemeint war, ist `spec-fidelity`. Dir gehört der Test, der **gar
   nichts** prüft.

@@ -98,6 +98,18 @@ was er damit erreicht, hast du keinen Befund, sondern ein Muster gesehen.
   Scanner-Konfiguration, ein `eslint-disable` auf einer Security-Regel, ein entfernter
   Scan-Job: das ist `gate-integrity`. Die Trennlinie ist einfach — er prüft die
   **Prüfschicht**, du prüfst den **Fachcode**.
+- **Injection über `${{ }}` in einer Workflow-Datei.** Ein `run:`-Block, der
+  `${{ github.event.* }}` direkt in eine Shell interpoliert, ist eine echte Lücke — aber
+  **`actionlint` hat dafür eine eigene Regel** und prüft sie deterministisch in der
+  Prüfstrecke. Melde sie nicht, auch dann nicht, wenn der Workflow im Diff steht und du die
+  Zeile deutlich siehst.
+
+  Die Grenze ist fein, deshalb ausdrücklich: **was am Auslöser und an den Rechten hängt,
+  gehört `workflow-ci`** — `pull_request_target` mit Checkout des Fork-Standes,
+  `permissions: write-all`, ungepinnte Actions. **Was an der Interpolation hängt, gehört
+  actionlint.** Für dich bleibt in einer Workflow-Datei nur, was weder das eine noch das
+  andere ist: ein Secret, das an einen Fork abfließt, oder eine Berechtigung, die einem
+  fremden Empfänger zuwächst.
 - **Ob Tests die Sicherheitslogik absichern.** Das ist `test-substance`.
 - **Ob die Anforderung erfüllt ist**, auch wenn sie sicherheitsrelevant war. Das ist
   `spec-fidelity`.
