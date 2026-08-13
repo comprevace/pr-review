@@ -54,6 +54,30 @@ test('fehlende Spec und fehlende Tests werden benannt', () => {
   assert.match(s, /src\/A\.java/);
 });
 
+test('Mehrfachbefunde stehen mit Paaren in der Bilanz', () => {
+  // Ohne diesen Block ist "refinen" Bauchgefuehl: die Bilanz sagt, wie viele Befunde
+  // kamen, aber nicht, welche Blickrichtungen sich ins Gehege kommen. Genau das ist die
+  // Groesse, an der man eine Reviergrenze nachschaerft.
+  const s = renderSummary({
+    ...base,
+    overlap: { clusters: 2, escalated: 1, pairs: [{ pair: 'gate-integrity + spec-fidelity', count: 2 }] },
+  });
+  assert.match(s, /Mehrfachbefunde/);
+  assert.match(s, /gate-integrity \+ spec-fidelity/);
+  assert.match(s, /2/);
+  // Der Satz, der die Zahl lesbar macht -- sonst haelt man haeufige Paare fuer ein
+  // Qualitaetssignal statt fuer eine unscharfe Grenze.
+  assert.match(s, /Reviergrenze|Grenze/);
+});
+
+test('ohne Ueberlappung erscheint der Block nicht', () => {
+  assert.doesNotMatch(renderSummary(base), /Mehrfachbefunde/);
+  assert.doesNotMatch(
+    renderSummary({ ...base, overlap: { clusters: 0, escalated: 0, pairs: [] } }),
+    /Mehrfachbefunde/,
+  );
+});
+
 test('eine gekappte Nachbarschaft steht in der Bilanz, nicht nur in meta.json', () => {
   // Nichts scheitert still. Wurde die Nachbarschaft abgeschnitten, hat consistency nur
   // einen Ausschnitt des Verzeichnisses gesehen -- und "kein Musterbruch gefunden" ist

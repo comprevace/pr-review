@@ -9,7 +9,7 @@ import { buildBundle, bundlePathFor, loadBundle } from './bundle.mjs';
 // Die CLI erfaehrt das Ergebnis ueber --skipped.
 import { loadAnalysts } from './registry.mjs';
 import { validateAll } from './findings.mjs';
-import { clusterFindings } from './cluster.mjs';
+import { clusterFindings, overlapStats } from './cluster.mjs';
 import { parseMarker } from './comment.mjs';
 import { buildPayload, DEFAULT_CAP } from './payload.mjs';
 import { renderSummary } from './summary.mjs';
@@ -160,6 +160,11 @@ export function aggregate({ bundle, analysts, analystFindings, failed, skipped =
   const counts = { blocker: 0, major: 0, minor: 0, info: 0 };
   for (const cluster of clusters) counts[cluster.severity]++;
 
+  // Aus ALLEN Clustern, nicht aus den geposteten: Ueberlappung ist eine Eigenschaft der
+  // Analyse. Ein Cluster, das an der Kappung oder am fehlenden Anker haengenbleibt, hat
+  // trotzdem zwei Blickrichtungen getroffen -- und genau das will man beim Tunen wissen.
+  const overlap = overlapStats(clusters);
+
   // rejected wird mit zurueckgegeben, nicht nur ueber renderBody geschlossen: der
   // Zweitlauf baut seine eigene Bilanz und braucht die Liste. Ohne sie verschwand jeder
   // verworfene Befund eines Zweitlaufs samt Grund und Analystennamen.
@@ -179,6 +184,7 @@ export function aggregate({ bundle, analysts, analystFindings, failed, skipped =
           anchorless: report.anchorless,
           capped: report.capped,
           skippedExisting: report.skippedExisting,
+          overlap,
           verify: null,
           meta: bundle.meta,
         }),
@@ -359,6 +365,10 @@ async function cmdVerify(positional, flags) {
         anchorless: report.anchorless,
         capped: report.capped,
         skippedExisting: report.skippedExisting,
+        // Aus allen diesmal gemeldeten Clustern, nicht nur aus dem geposteten Delta:
+        // ein Befund, der schon einen Thread hat, ist beim Tunen genauso aussagekraeftig
+        // fuer die Reviergrenze wie ein neuer.
+        overlap: overlapStats(reportedNow),
         verify: {
           resolved: delta.counts.resolved,
           stillOpen: delta.counts.stillOpen,

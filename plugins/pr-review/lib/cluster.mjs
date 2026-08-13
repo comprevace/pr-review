@@ -85,6 +85,42 @@ function finalize(acc, file, side, haystacks, analystTitles) {
   };
 }
 
+// Welche Blickrichtungen treffen denselben Ort? Das ist die Groesse, an der ein Roster
+// nachgeschaerft wird. Die blosse Zahl der Mehrfach-Cluster taugt dafuer nicht: sie sagt,
+// DASS es Ueberlappung gab, nicht ZWISCHEN WEM -- und nur das Paar verraet, welche
+// Reviergrenze unscharf ist.
+//
+// Ein Cluster mit drei Analysten wird in alle drei Paare zerlegt, nicht als Tripel
+// gezaehlt: die interessante Information ist, welche Grenzen dort aneinanderstossen.
+export function overlapStats(clusters) {
+  const pairs = new Map();
+  let multi = 0;
+  let escalated = 0;
+
+  for (const cluster of clusters ?? []) {
+    const names = [...new Set(cluster.analysts ?? [])].sort();
+    if (names.length < 2) continue;
+    multi++;
+    if (cluster.escalated) escalated++;
+    for (let i = 0; i < names.length; i++) {
+      for (let j = i + 1; j < names.length; j++) {
+        const key = `${names[i]} + ${names[j]}`;
+        pairs.set(key, (pairs.get(key) ?? 0) + 1);
+      }
+    }
+  }
+
+  return {
+    clusters: multi,
+    escalated,
+    // Haeufigstes Paar zuerst, bei Gleichstand alphabetisch -- damit zwei Laeufe mit
+    // denselben Befunden dieselbe Bilanz ergeben und ein Vergleich moeglich ist.
+    pairs: [...pairs.entries()]
+      .map(([pair, count]) => ({ pair, count }))
+      .sort((a, b) => b.count - a.count || a.pair.localeCompare(b.pair)),
+  };
+}
+
 export function clusterFindings(findings, { tolerance = DEFAULT_TOLERANCE, haystacks, analystTitles } = {}) {
   const groups = new Map();
   for (const finding of findings) {

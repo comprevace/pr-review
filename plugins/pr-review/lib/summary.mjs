@@ -14,7 +14,7 @@ function groupReasons(rejected) {
 export function renderSummary(input) {
   const {
     pluginVersion, analystsRun, analystsSkipped, analystsFailed, counts,
-    rejected, anchorless, capped, skippedExisting, verify, meta,
+    rejected, anchorless, capped, skippedExisting, verify, meta, overlap,
   } = input;
 
   const out = ['## PR-Review — Bilanz', ''];
@@ -75,6 +75,23 @@ export function renderSummary(input) {
 
   if (skippedExisting.length > 0) {
     out.push(`**Bereits kommentiert: ${skippedExisting.length}** (nicht erneut gesetzt)`, '');
+  }
+
+  // Der Block, an dem sich das Roster nachschaerfen laesst. Er steht bewusst mit dem
+  // deutenden Satz da: ohne ihn liest man ein haeufiges Paar als Qualitaetssignal
+  // ("zwei Pruefer sind sich einig") statt als das, was es meistens ist -- eine
+  // Reviergrenze, die nicht trennt.
+  if (overlap?.clusters > 0) {
+    out.push(
+      `**Mehrfachbefunde:** ${overlap.clusters} Cluster mit mehr als einem Analysten, `
+      + `davon ${overlap.escalated} in der Severity erhöht`,
+      '',
+      bullet(overlap.pairs.map((p) => `\`${p.pair}\` — ${p.count}×`)),
+      '',
+      '<sub>Ein Paar, das häufig gemeinsam auftaucht, zeigt eher eine unscharfe '
+      + 'Reviergrenze als echte Mehrfachbetroffenheit.</sub>',
+      '',
+    );
   }
 
   const gaps = [];
