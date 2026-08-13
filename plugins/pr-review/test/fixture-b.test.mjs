@@ -114,3 +114,44 @@ test('mindestens ein Fall erzeugt eine echte Ueberlappung', () => {
     'kein gepflanztes Zitat gehoert zwei Analysten -- das Bundle kann keine Ueberlappung ausloesen',
   );
 });
+
+test('die actionlint-Sonde und die Prompts nennen dieselben Analysten', () => {
+  // Die Luecke vom 13.08. hatte zwei Haelften, und beide waren unbewacht: der Prompt von
+  // security-context grenzte die ${{ }}-Injection nicht ab, UND die Sonde sah nur nach
+  // workflow-ci. Jede Haelfte allein haette gereicht, um den Doppelbefund zu verhindern --
+  // gefehlt haben beide, und kein Test hat es gesagt.
+  //
+  // Deshalb hier keine feste Liste, sondern eine Gleichung: wer in seiner Abgrenzung
+  // actionlint als Eigentuemer nennt, MUSS in der Sonde stehen, und wer in der Sonde steht,
+  // MUSS es in seiner Abgrenzung nennen. Beide Richtungen sind ein echter Fehlerfall.
+  // Prompt-Fix ohne Sonde heisst: der Rueckfall wird nie bemerkt. Sonde ohne Prompt-Fix
+  // heisst: sie schlaegt bei jedem Lauf an, und irgendwann glaubt man ihr nicht mehr.
+  const sonde = PLANTED.find((p) => p.fall.includes('Injection über ${{ }}'));
+  assert.ok(sonde, 'die Injection-Sonde fehlt in der Landkarte');
+
+  const nennenActionlint = analysts
+    .filter((a) => /actionlint/i.test(a.body.split('NICHT deine Sache')[1] ?? ''))
+    .map((a) => a.name)
+    .sort();
+
+  assert.deepEqual(
+    [...sonde.darfNicht].sort(), nennenActionlint,
+    'Sonde und Prompts sind auseinandergelaufen: die Sonde prueft nicht dieselben '
+    + 'Analysten, die actionlint als Eigentuemer nennen',
+  );
+});
+
+test('die Sonde fuer den geliehenen Anker deckt sich mit dem Prompt', () => {
+  // Dieselbe Gleichung fuer die zweite Haelfte von Befund 4. Ein Befund ueber eine
+  // Abwesenheit hat keinen eigenen Anker; wer das in seiner Abgrenzung stehen hat, muss in
+  // der Sonde stehen, die es nachprueft.
+  const sonde = PLANTED.find((p) => p.fall.includes('ohne Testdatei'));
+  assert.ok(sonde, 'die Sonde fuer den geliehenen Anker fehlt in der Landkarte');
+
+  const nennenMissingTests = analysts
+    .filter((a) => /missing_tests/.test(a.body.split('NICHT deine Sache')[1] ?? ''))
+    .map((a) => a.name)
+    .sort();
+
+  assert.deepEqual([...sonde.darfNicht].sort(), nennenMissingTests);
+});

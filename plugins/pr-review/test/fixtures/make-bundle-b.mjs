@@ -376,9 +376,41 @@ export const PLANTED = [
     file: '.github/workflows/release.yml',
     evidence: '- run: echo "Titel ${{ github.event.pull_request.title }}"',
     line: 15,
-    darfNicht: ['workflow-ci'],
-    hinweis: 'SONDE: actionlint prüft das deterministisch. Meldet workflow-ci es trotzdem, '
-      + 'ist Prinzip 2 im Prompt nicht angekommen.',
+    // Zwei Namen, weil die Sonde mit einem Namen den Leck nicht gefunden hat: im Messlauf
+    // vom 13.08. verschwieg workflow-ci die Stelle korrekt, security-context meldete sie
+    // als blocker -- und die Sonde sagte nichts, weil sie nur nach workflow-ci sah. Eine
+    // Sonde ist nur so gut wie ihre Liste. Wer einen Ort einem deterministischen Werkzeug
+    // zuschlaegt, muss JEDEN Analysten nennen, der ihn sehen kann, nicht nur den
+    // naechstliegenden.
+    darfNicht: ['workflow-ci', 'security-context'],
+    hinweis: 'SONDE: actionlint prüft das deterministisch. Meldet einer der beiden es '
+      + 'trotzdem, ist Prinzip 2 im Prompt nicht angekommen.',
+  },
+  {
+    fall: 'Komponente ohne Testdatei — gehört der Bilanz, nicht dem Roster',
+    muss: null,
+    file: 'src/ui/OrderList.vue',
+    evidence: 'total.value = list.reduce((sum, o) => sum + o.amount, 0)',
+    line: 8,
+    // SONDE fuer einen geliehenen Anker. OrderList.vue hat keine Testdatei; der Bundle-Bau
+    // vermerkt das in meta.missing_tests, und die Bilanz fuehrt es unter "Luecken in der
+    // Eingabe" auf. gate-integrity meldete es am 13.08. trotzdem als Inline-Befund -- und
+    // musste sich dafuer einen Anker leihen, weil meta.json nicht zitierbar ist. Er nahm
+    // ausgerechnet die Zeile, die vue-ts fuer seinen Reaktivitaetsbefund zitiert.
+    //
+    // Seit Cluster nach dem Zitat gebildet werden, ist das nicht mehr nur unschoen: beide
+    // Befunde landen in EINEM Kommentar, und weil beide major sind, erhoeht die
+    // Uebereinstimmungsregel auf blocker. Ein geliehener Anker erzeugt jetzt also eine
+    // falsche Severity, nicht bloss eine falsche Nachbarschaft.
+    // Zwei Namen, und der zweite kam nicht aus dem Messlauf, sondern aus dem
+    // Invariantentest: test-substance verwies fuer diesen Fall auf gate-integrity als
+    // Eigentuemer. Nachdem gate-integrity ihn abgegeben hat, zeigte dieser Verweis auf
+    // niemanden mehr -- und ein Analyst, der auf einen leeren Eigentuemer verweist, greift
+    // beim naechsten Lauf selbst zu. Die Grenzen sind paarweise geschrieben; wer eine
+    // aufloest, muss die Gegenseite mitnehmen.
+    darfNicht: ['gate-integrity', 'test-substance'],
+    hinweis: 'SONDE: ein Befund über eine ABWESENHEIT hat keinen eigenen Anker. Meldet '
+      + 'einer der beiden hier etwas, hat er sich eine Zeile geliehen, die vue-ts gehört.',
   },
 ];
 

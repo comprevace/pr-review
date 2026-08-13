@@ -222,6 +222,48 @@ test('security-context haelt sich von dem fern, was ein Scanner deterministisch 
   assert.match(abgrenzung, /gate-integrity/, 'muss die Stilllegung von Pruefungen abgrenzen');
 });
 
+test('security-context meldet keine ${{ }}-Injection — die prueft actionlint', () => {
+  // Gemessen am 13.08.: workflow-ci verschwieg die Injection korrekt, security-context
+  // meldete sie (release.yml:15, blocker). Derselbe Prinzip-2-Schnitt wie bei workflow-ci,
+  // nur am anderen Analysten -- und er war nur bei EINEM von beiden gezogen. Eine
+  // Abgrenzung, die paarweise geschrieben wird, laesst genau solche Luecken: der Ort
+  // gehoert einem deterministischen Werkzeug, also muss ihn JEDER Analyst meiden, der ihn
+  // sehen kann, nicht nur der naechstliegende.
+  const byName = new Map(loadAnalysts([join(ROOT, 'analysts')]).map((a) => [a.name, a]));
+  const abgrenzung = byName.get('security-context').body.split('NICHT deine Sache')[1] ?? '';
+  assert.match(abgrenzung, /actionlint/i, 'muss actionlint als Eigentuemer benennen');
+  assert.match(abgrenzung, /Injection|injection/, 'muss die Injection ausdruecklich ausgrenzen');
+  assert.match(abgrenzung, /workflow-ci/, 'muss den Nachbarn benennen, der Workflows prueft');
+});
+
+test('gate-integrity erfindet keinen Anker fuer eine fehlende Testdatei', () => {
+  // Gemessen am 13.08.: gate-integrity verankerte "UI-Komponente ohne jede Testdatei" auf
+  // der watch-Zeile -- derselben, die vue-ts fuer seinen Reaktivitaetsbefund zitiert.
+  // Seit Cluster nach dem Zitat gebildet werden, ist das ein gemeinsamer Cluster aus zwei
+  // voellig verschiedenen Sachen, und die Severity-Erhoehung feuert darauf.
+  //
+  // Die Ursache ist strukturell und nicht durch eine bessere Zeilenwahl zu heilen: die
+  // Information steht in meta.json -> missing_tests, und meta.json ist NICHT zitierbar.
+  // Der Analyst muss sich also irgendeine Zeile aus der Datei leihen -- und jede geliehene
+  // Zeile gehoert dem, der sie fachlich prueft. Ein Befund ueber eine ABWESENHEIT hat
+  // keinen eigenen Anker.
+  //
+  // Abschnitt 8.6 des Designs beantwortet das bereits: ankerlose Befunde gehen in die
+  // Bilanz. Und dort steht die fehlende Testdatei ohnehin schon -- der Bundle-Bau vermerkt
+  // sie deterministisch unter "Luecken in der Eingabe". Der Prompt hat die Regel umgangen,
+  // indem er sich einen Anker beschaffte.
+  const byName = new Map(loadAnalysts([join(ROOT, 'analysts')]).map((a) => [a.name, a]));
+  const [blickrichtung, abgrenzung = ''] = byName.get('gate-integrity').body.split('NICHT deine Sache');
+  assert.doesNotMatch(
+    blickrichtung, /missing_tests/,
+    'die Blickrichtung darf nicht mehr zu einem Inline-Befund aus missing_tests anleiten',
+  );
+  assert.match(abgrenzung, /missing_tests/, 'die Abgrenzung muss missing_tests benennen');
+  assert.match(abgrenzung, /Bilanz/, 'muss sagen, wo der Befund stattdessen steht');
+  assert.match(abgrenzung, /Abwesenheit|abwesend|fehlt.*Anker|keinen eigenen Anker/i,
+    'muss die Regel fuer Befunde ohne eigenen Anker benennen');
+});
+
 test('security-context verlangt Zurueckhaltung, wo die Kontextgrenze urteilt', () => {
   // Der gefaehrlichste Analyst fuer Falschbefunde: Autorisierung wird haeufig zentral
   // erzwungen -- in einem Interceptor, einer Filterkette, einer Policy-Datei -- und
@@ -257,6 +299,24 @@ test('test-substance grenzt sich gegen seine zwei Nachbarn ab', () => {
   const abgrenzung = byName.get('test-substance').body.split('NICHT deine Sache')[1] ?? '';
   assert.match(abgrenzung, /gate-integrity/);
   assert.match(abgrenzung, /spec-fidelity/);
+});
+
+test('wer die fehlende Testdatei abgrenzt, sagt auch, wo sie stattdessen steht', () => {
+  // Aufgedeckt von einer Mutationsprobe: die Gleichung "Sonde == Prompts" prueft nur, DASS
+  // ein Prompt missing_tests erwaehnt, nicht WAS er dazu sagt. Damit blieb der Rueckweg
+  // offen -- test-substance verwies fuer diesen Fall auf gate-integrity als Eigentuemer,
+  // und nachdem gate-integrity ihn abgegeben hatte, zeigte der Verweis auf niemanden.
+  //
+  // Ein Analyst, der glaubt, ein anderer kuemmere sich, schweigt. Stimmt der Verweis nicht
+  // mehr, greift er selbst zu -- und leiht sich wieder einen Anker. Der Fall hat seit
+  // Befund 4 keinen Eigentuemer im Roster, sondern einen Ort: die Bilanz. Wer ihn abgrenzt,
+  // muss diesen Ort nennen, nicht einen Kollegen.
+  for (const analyst of loadAnalysts([join(ROOT, 'analysts')])) {
+    const abgrenzung = analyst.body.split('NICHT deine Sache')[1] ?? '';
+    if (!/missing_tests/.test(abgrenzung)) continue;
+    assert.match(abgrenzung, /Bilanz/,
+      `${analyst.name} grenzt missing_tests ab, ohne die Bilanz als Ort zu nennen`);
+  }
 });
 
 test('jeder Analyst hat den Pflichtabschnitt zur Abgrenzung', () => {
