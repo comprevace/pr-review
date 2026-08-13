@@ -54,11 +54,17 @@ test('der Kontrakt verspricht keine Evidenz, die der Validator verwirft', () => 
   assert.match(contract, /Verstehen/);
 });
 
-test('der Agent-Typ hat kein Bash und kein Netz', () => {
+test('der Agent-Typ hat kein Bash und kein Netz, aber Write', () => {
   const { meta } = parseFrontmatterLoose(readFileSync(join(ROOT, 'agents/pr-review-analyst.md'), 'utf8'));
   const tools = String(meta.tools);
   assert.match(tools, /Read/);
   assert.match(tools, /Grep/);
+  // Write ist Pflicht, nicht Kosmetik: der Kontrakt verlangt vom Analysten, seine
+  // Befunde nach <bundle>/findings/<name>.json zu SCHREIBEN. Ohne Write kann er seine
+  // Arbeit physisch nicht abliefern, und jeder Lauf endet mit "alle Analysten
+  // ausgefallen" -- was genau einmal passiert ist, weil dieser Test urspruenglich nur
+  // geprueft hat, was FEHLEN muss, und nie, was DA SEIN muss.
+  assert.match(tools, /Write/);
   assert.doesNotMatch(tools, /Bash/);
   assert.doesNotMatch(tools, /WebFetch/);
   assert.doesNotMatch(tools, /WebSearch/);
