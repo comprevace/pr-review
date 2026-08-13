@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { clusterFindings } from '../lib/cluster.mjs';
+import { clusterFindings, overlapStats } from '../lib/cluster.mjs';
 import { renderComment, parseEvidence, evidenceHash, findingId, occurrenceIndex } from '../lib/comment.mjs';
 
 const A_LINES = ['l1', 'l2', 'l3', 'l4', 'l5', 'l6', 'l7', 'l8', 'l9', '@Disabled("flaky")',
@@ -153,6 +153,39 @@ test('id, ev und erstes Blockquote beschreiben dasselbe Item', () => {
     // Der Kern: die ID gehoert zu genau dem Zitat, das im Kommentar steht.
     assert.equal(c.id, findingId('src/A.java', zitat, occurrenceIndex(haystacks.get('src/A.java'), zitat, 12), 'RIGHT'));
   }
+});
+
+test('overlapStats zaehlt Analystenpaare, nicht nur Cluster', () => {
+  // Die Zahl, gegen die man das Roster refinet. Ein Paar, das haeufig gemeinsam
+  // auftaucht, zeigt eher eine unscharfe Reviergrenze als echte Mehrfachbetroffenheit --
+  // aber nur, wenn man sieht, WELCHES Paar es ist. Die blosse Zahl der Mehrfach-Cluster
+  // sagt darueber nichts.
+  const stats = overlapStats([
+    { analysts: ['gi', 'sf'], escalated: true },
+    { analysts: ['gi', 'sf'], escalated: true },
+    { analysts: ['gi'], escalated: false },
+    { analysts: ['sf', 'cx'], escalated: false },
+  ]);
+  assert.equal(stats.clusters, 3);
+  assert.equal(stats.escalated, 2);
+  assert.deepEqual(stats.pairs, [
+    { pair: 'gi + sf', count: 2 },
+    { pair: 'cx + sf', count: 1 },
+  ]);
+});
+
+test('overlapStats zerlegt einen Dreier in alle Paare', () => {
+  // Bei drei Analysten an einem Ort ist die interessante Information, welche DREI
+  // Grenzen dort aneinanderstossen -- nicht, dass es drei waren.
+  const stats = overlapStats([{ analysts: ['cx', 'gi', 'sf'], escalated: true }]);
+  assert.equal(stats.clusters, 1);
+  assert.deepEqual(stats.pairs.map((p) => p.pair), ['cx + gi', 'cx + sf', 'gi + sf']);
+});
+
+test('overlapStats ist ohne Ueberlappung leer', () => {
+  const stats = overlapStats([{ analysts: ['gi'], escalated: false }]);
+  assert.equal(stats.clusters, 0);
+  assert.deepEqual(stats.pairs, []);
 });
 
 test('LEFT und RIGHT mit identischer Evidenz ergeben verschiedene Cluster-IDs', () => {

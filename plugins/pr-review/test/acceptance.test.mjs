@@ -91,6 +91,15 @@ test('das Review ist ein Kommentar, niemals ein Approve', () => {
   assert.match(result.body, /kein Approve/);
 });
 
+test('die Bilanz nennt das Analystenpaar, das sich ins Gehege kam', () => {
+  // Die Integrationsprobe zum Overlap-Block: nicht nur, dass renderSummary ihn setzen
+  // KANN, sondern dass aggregate ihn aus den echten Clustern speist. Fall A+B ist der
+  // gepflanzte Doppelbefund dieses Bundles.
+  const result = run();
+  assert.match(result.body, /Mehrfachbefunde/);
+  assert.match(result.body, /gate-integrity \+ spec-fidelity/);
+});
+
 test('jeder Kommentar traegt einen maschinenlesbaren Marker', () => {
   const result = run();
   for (const comment of result.comments) {
