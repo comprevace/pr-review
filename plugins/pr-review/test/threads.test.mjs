@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { fetchThreads, resolveThread, computeDelta } from '../lib/threads.mjs';
-import { renderMarker, evidenceHash } from '../lib/comment.mjs';
+import { renderMarker, evidenceHash, MARKER_VERSION } from '../lib/comment.mjs';
 
 function pageFactory(pages) {
   let i = 0;
@@ -48,9 +48,9 @@ const cluster = (id, evidence) => ({
 // evidence steht im Thread, weil der Zweitlauf das Zitat als TEXT braucht: die Frage
 // ist "steht das noch woertlich in der Datei", und ein Hash laesst sich nicht auf
 // Teilstring pruefen. fetchThreads liest es mit parseEvidence aus dem Kommentar.
-const thread = (id, markerId, evidence, isResolved = false) => ({
+const thread = (id, markerId, evidence, isResolved = false, version = MARKER_VERSION) => ({
   id, isResolved,
-  marker: { id: markerId, sev: 'major', ev: evidence === null ? null : evidenceHash(evidence), analysts: ['gi'] },
+  marker: { id: markerId, sev: 'major', ev: evidence === null ? null : evidenceHash(evidence), analysts: ['gi'], version },
   evidence,
 });
 
@@ -100,6 +100,25 @@ test('Marker ohne ev-Feld bleibt offen statt still aufgeloest zu werden', () => 
     clusters: [],
     threads: [thread('T1', 'aaaaaa', null)],
     haystacks: new Map([['src/A.java', 'irgendwas\n']]),
+  });
+  assert.deepEqual(delta.resolvable, []);
+  assert.deepEqual(delta.stillOpen, ['aaaaaa']);
+});
+
+test('ein Thread aus einem aelteren ID-Schema wird nie aufgeloest', () => {
+  // Der Versionswechsel rotiert alle IDs. Damit kann die ID eines v1-Threads in keiner
+  // Meldung dieses Laufs mehr vorkommen -- Bedingung (1) ("kein Analyst meldet den
+  // Befund erneut") waere fuer ihn IMMER erfuellt, ohne dass sie je geprueft wurde.
+  // Die Zwei-Bedingungen-Regel kollabierte fuer die ganze Klasse alter Threads auf
+  // eine, und eine bloss umformulierte Zeile genuegte, um einen Befund als behoben zu
+  // schliessen, waehrend er unter neuer ID gerade erneut gemeldet wird. Dieselbe
+  // Vorsicht wie bei einem Marker ohne ev: lieber ein Thread zu viel offen als ein
+  // stillschweigend geschlossener echter Befund.
+  const alt = thread('T1', 'aaaaaa', 'war-mal-da', false, 'v1');
+  const delta = computeDelta({
+    clusters: [],
+    threads: [alt],
+    haystacks: new Map([['src/A.java', 'alles neu\n']]),
   });
   assert.deepEqual(delta.resolvable, []);
   assert.deepEqual(delta.stillOpen, ['aaaaaa']);

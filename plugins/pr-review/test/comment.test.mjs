@@ -33,22 +33,54 @@ test('ein Vorkommen unterhalb der gemeldeten Zeile gewinnt, wenn es naeher liegt
 });
 
 test('findingId ist stabil gegen Zeilenverschiebung', () => {
-  const a = findingId('src/A.java', '@Disabled("flaky")', 1);
-  const b = findingId('src/A.java', '  @Disabled("flaky")  ', 1);
+  const a = findingId('src/A.java', '@Disabled("flaky")', 1, 'RIGHT');
+  const b = findingId('src/A.java', '  @Disabled("flaky")  ', 1, 'RIGHT');
   assert.equal(a, b);
   assert.match(a, /^[0-9a-f]{6}$/);
 });
 
 test('findingId unterscheidet Vorkommen und Dateien', () => {
-  assert.notEqual(findingId('src/A.java', 'x', 1), findingId('src/A.java', 'x', 2));
-  assert.notEqual(findingId('src/A.java', 'x', 1), findingId('src/B.java', 'x', 1));
+  assert.notEqual(findingId('src/A.java', 'x', 1, 'RIGHT'), findingId('src/A.java', 'x', 2, 'RIGHT'));
+  assert.notEqual(findingId('src/A.java', 'x', 1, 'RIGHT'), findingId('src/B.java', 'x', 1, 'RIGHT'));
+});
+
+test('findingId unterscheidet LEFT und RIGHT', () => {
+  // Eine entfernte und eine hinzugefuegte Zeile koennen woertlich dasselbe Fragment
+  // enthalten -- beim Verschieben von Code ist das der Normalfall, nicht der Randfall.
+  // Ohne die Seite im Schluessel teilen sich die beiden Cluster eine ID. Der Zweitlauf
+  // beantwortet Bedingung (1) dann fuer den einen Thread mit der Meldung des anderen:
+  // wird die RIGHT-Seite behoben und die LEFT-Seite weiter gemeldet, bleibt der falsche
+  // Thread offen. Zusaetzlich ueberschreibt clusterById den einen Cluster mit dem
+  // anderen, womit ein Rueckfall auf den falschen Befund gepostet wird.
+  assert.notEqual(
+    findingId('src/A.java', 'x', 1, 'LEFT'),
+    findingId('src/A.java', 'x', 1, 'RIGHT'),
+  );
+});
+
+test('findingId trennt Datei und Evidenz eindeutig', () => {
+  // Mit einem Leerzeichen als Trenner ergaeben ("src/my file", "x") und ("src/my",
+  // "file x") denselben Hash-Input -- zwei verschiedene Befunde teilten sich eine ID.
+  // Ein Dateipfad darf ein Leerzeichen enthalten, das NUL-Byte nicht.
+  assert.notEqual(
+    findingId('src/my file', 'x', 1, 'RIGHT'),
+    findingId('src/my', 'file x', 1, 'RIGHT'),
+  );
+});
+
+test('findingId verlangt eine Seite und nimmt keinen stillen Standardwert an', () => {
+  // Ein Standardwert 'RIGHT' waere die gefaehrlichere Variante: ein Aufrufer, der die
+  // Seite vergisst, erzeugte genau die kollidierenden IDs zurueck, die dieser Schluessel
+  // beseitigt -- und nichts wuerde es anzeigen. Lieber laut scheitern.
+  assert.throws(() => findingId('src/A.java', 'x', 1), /side/i);
+  assert.throws(() => findingId('src/A.java', 'x', 1, 'BOTH'), /side/i);
 });
 
 test('renderMarker und parseMarker sind zueinander invers', () => {
   const marker = renderMarker({ id: 'a3f9c1', sev: 'blocker', ev: 'deadbeef', analysts: ['gate-integrity', 'spec-fidelity'] });
-  assert.match(marker, /^<!-- pr-review:v1 /);
+  assert.match(marker, /^<!-- pr-review:v2 /);
   assert.deepEqual(parseMarker(`text\n${marker}\n`), {
-    id: 'a3f9c1', sev: 'blocker', ev: 'deadbeef', analysts: ['gate-integrity', 'spec-fidelity'],
+    version: 'v2', id: 'a3f9c1', sev: 'blocker', ev: 'deadbeef', analysts: ['gate-integrity', 'spec-fidelity'],
   });
 });
 
@@ -60,7 +92,19 @@ test('evidenceHash ist unabhaengig von Whitespace und im Marker lesbar', () => {
 
 test('ein Marker ohne ev bleibt lesbar (Rueckwaertskompatibilitaet)', () => {
   const old = '<!-- pr-review:v1 id=aaaaaa sev=major analysts=gi -->';
-  assert.deepEqual(parseMarker(old), { id: 'aaaaaa', sev: 'major', ev: null, analysts: ['gi'] });
+  assert.deepEqual(parseMarker(old), { version: 'v1', id: 'aaaaaa', sev: 'major', ev: null, analysts: ['gi'] });
+});
+
+test('ein v1-Marker eines frueheren Laufs bleibt lesbar', () => {
+  // Der Versionswechsel rotiert alle IDs. Wuerde v2 die alten Marker nicht mehr lesen,
+  // faellt jeder bestehende Thread in die Klasse "fremder Kommentar" und wird nie wieder
+  // angetastet -- er haengt fuer immer offen, auch wenn der Befund laengst behoben ist.
+  // Gelesen bleibt er ueber sein Zitat aufloesbar; nur seine ID passt zu keinem Cluster
+  // mehr, und das ist der bewusst bezahlte Preis der Rotation (ein Duplikat, kein
+  // falsches "behoben").
+  assert.deepEqual(parseMarker('<!-- pr-review:v1 id=aaaaaa sev=major ev=deadbeef analysts=gi -->'), {
+    version: 'v1', id: 'aaaaaa', sev: 'major', ev: 'deadbeef', analysts: ['gi'],
+  });
 });
 
 test('parseMarker ignoriert fremde Kommentare', () => {

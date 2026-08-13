@@ -1,4 +1,4 @@
-import { mkdirSync, writeFileSync, readFileSync, existsSync, readdirSync, statSync, rmSync } from 'node:fs';
+import { mkdirSync, writeFileSync, readFileSync, existsSync, readdirSync, statSync, rmSync, renameSync } from 'node:fs';
 import { join, dirname, basename, extname } from 'node:path';
 import { homedir } from 'node:os';
 import { commentableRanges } from './diff.mjs';
@@ -56,6 +56,33 @@ function writeUnder(dir, relPath, content) {
   writeFileSync(target, content);
 }
 
+// Die drei Verzeichnisse, die je Lauf komplett neu entstehen. Sie sammeln sich sonst
+// ueber Runden hinweg an, denn geschrieben wird nur, was diesmal geholt wurde -- eine
+// Datei, die in Runde 2 geloescht wurde, ihren Patch verloren hat oder deren Test
+// verschwunden ist, behielte ihren Stand aus Runde 1. Fuer files/ und patches/ ist das
+// nicht bloss Muell: beide bilden den Haystack, gegen den Bedingung (2) prueft. Ein
+// veralteter Stand haelt jedes Zitat auffindbar, und ein wirklich behobener Befund
+// loest nie auf. tests/ liegt nicht im Haystack, wird aber von den Analysten gelesen.
+const STAGED_DIRS = ['files', 'patches', 'tests'];
+
+// Gestaged wird INNERHALB des Bundle-Verzeichnisses, damit das Umschalten ein rename
+// auf demselben Dateisystem bleibt und nicht ueber Verzeichnisse hinweg kopiert.
+const STAGING = '.incoming';
+
+// Umgeschaltet wird erst, wenn alles Holen durch ist. Vorher zu leeren hiesse: ein
+// abgebrochenes fetch laesst ein halb ausgeraeumtes Bundle zurueck, und das ist
+// schlimmer als ein veraltetes -- es sieht vollstaendig aus und ist es nicht.
+function commitStaged(dir) {
+  for (const name of STAGED_DIRS) {
+    const staged = join(dir, STAGING, name);
+    rmSync(join(dir, name), { recursive: true, force: true });
+    // Nicht angelegt heisst diesmal leer -- etwa wenn jede Datei binaer war. Das
+    // Verzeichnis bleibt dann weg, statt den Stand des Vorlaufs zu behalten.
+    if (existsSync(staged)) renameSync(staged, join(dir, name));
+  }
+  rmSync(join(dir, STAGING), { recursive: true, force: true });
+}
+
 async function fetchText(ghApi, repo, path, ref) {
   try {
     const res = await ghApi(`/repos/${repo}/contents/${encodeURI(path)}?ref=${ref}`);
@@ -70,7 +97,22 @@ async function fetchText(ghApi, repo, path, ref) {
 export async function buildBundle({ repo, number, ghApi, bundleDir }) {
   const dir = bundleDir ?? bundlePathFor(repo, number);
   mkdirSync(dir, { recursive: true });
+  // Reste eines abgebrochenen Vorlaufs zuerst weg: sonst mischt sich dessen halber
+  // Stand in das, was diesmal geholt wird.
+  const staging = join(dir, STAGING);
+  rmSync(staging, { recursive: true, force: true });
 
+  try {
+    return await fetchInto({ repo, number, ghApi, dir, staging });
+  } finally {
+    // Nach dem Umschalten ist staging bereits weg; nach einem Abbruch liegt hier ein
+    // Teilstand, den niemand lesen soll -- am wenigsten ein Analyst, der das
+    // Bundle-Verzeichnis durchsucht.
+    rmSync(staging, { recursive: true, force: true });
+  }
+}
+
+async function fetchInto({ repo, number, ghApi, dir, staging }) {
   const pr = await ghApi(`/repos/${repo}/pulls/${number}`);
   const rawFiles = await ghApi(`/repos/${repo}/pulls/${number}/files`, { paginate: true });
   if (rawFiles.length === 0) {
@@ -109,13 +151,13 @@ export async function buildBundle({ repo, number, ghApi, bundleDir }) {
       patchMissing.push(f.filename);
     } else {
       patchParts.push(`--- a/${f.filename}\n+++ b/${f.filename}\n${f.patch}`);
-      writeUnder(dir, join('patches', `${f.filename}.patch`), f.patch);
+      writeUnder(staging, join('patches', `${f.filename}.patch`), f.patch);
     }
     files.push(entry);
 
     if (f.status !== 'removed' && !f.patch_missing && f.patch) {
       const text = await fetchText(ghApi, repo, f.filename, headSha);
-      if (text !== null) writeUnder(dir, join('files', f.filename), text);
+      if (text !== null) writeUnder(staging, join('files', f.filename), text);
     }
 
     const candidates = testCandidates(f.filename);
@@ -125,7 +167,7 @@ export async function buildBundle({ repo, number, ghApi, bundleDir }) {
         const text = changedPaths.has(cand) ? null : await fetchText(ghApi, repo, cand, headSha);
         if (changedPaths.has(cand)) { found = true; break; }
         if (text !== null) {
-          writeUnder(dir, join('tests', cand), text);
+          writeUnder(staging, join('tests', cand), text);
           found = true;
           break;
         }
@@ -142,6 +184,12 @@ export async function buildBundle({ repo, number, ghApi, bundleDir }) {
 
   const comments = await ghApi(`/repos/${repo}/pulls/${number}/comments`, { paginate: true });
   writeUnder(dir, 'previous.json', JSON.stringify(comments ?? [], null, 2));
+
+  // Ab hier wird nichts mehr geholt: jetzt ist der frisch geholte Stand vollstaendig
+  // und darf den alten ersetzen. Direkt davor steht die letzte Netzoperation, direkt
+  // danach nur noch das Schreiben von meta.json und diff.patch, die denselben Stand
+  // beschreiben.
+  commitStaged(dir);
 
   const meta = {
     repo,

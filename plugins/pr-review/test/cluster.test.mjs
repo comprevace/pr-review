@@ -151,8 +151,19 @@ test('id, ev und erstes Blockquote beschreiben dasselbe Item', () => {
     assert.equal(zitat, 'assertTrue(true);');
     assert.ok(body.includes(`ev=${evidenceHash(zitat)}`));
     // Der Kern: die ID gehoert zu genau dem Zitat, das im Kommentar steht.
-    assert.equal(c.id, findingId('src/A.java', zitat, occurrenceIndex(haystacks.get('src/A.java'), zitat, 12)));
+    assert.equal(c.id, findingId('src/A.java', zitat, occurrenceIndex(haystacks.get('src/A.java'), zitat, 12), 'RIGHT'));
   }
+});
+
+test('LEFT und RIGHT mit identischer Evidenz ergeben verschiedene Cluster-IDs', () => {
+  // Beim Verschieben von Code steht dasselbe Fragment einmal als entfernte und einmal
+  // als hinzugefuegte Zeile im Diff. Die Cluster sind bereits nach Seite getrennt --
+  // wenn ihre IDs es nicht sind, verwechselt der Zweitlauf die zugehoerigen Threads.
+  const rechts = clusterFindings([f({ side: 'RIGHT' })], ctx)[0];
+  const links = clusterFindings([f({ side: 'LEFT' })], ctx)[0];
+  assert.equal(rechts.items[0].evidence, links.items[0].evidence);
+  assert.equal(rechts.file, links.file);
+  assert.notEqual(rechts.id, links.id);
 });
 
 test('Rueckgabe ist nach Severity sortiert', () => {
