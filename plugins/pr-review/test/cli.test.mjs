@@ -43,7 +43,7 @@ test('post schickt commit_id mit', () => {
   const payload = payloadOf(dir);
   assert.equal(payload.commit_id, 'head');
   assert.equal(payload.event, 'COMMENT');
-  assert.equal(payload.comments.length, 1);
+  assert.equal(payload.comments.length, 2); // A+B verschmolzen, E eigenstaendig
 });
 
 test('ein Analyst ohne Datei und ohne Meldung wird von der CLI selbst benannt', () => {
@@ -129,22 +129,27 @@ test('der Zweitlauf postet einen Rueckfall, nennt ihn und traegt commit_id und V
   const dir = freshBundle('prr-cli-verify-');
   runCli(['post', '--bundle', dir, '--dry-run']);
   const posted = payloadOf(dir).comments[0];
+  const rueckfallId = /id=([0-9a-f]{6})/.exec(posted.body)[1];
 
   const { env, capture } = fakeGhEnv({ threadsJson: resolvedThreadFor(posted.body) });
   const out = JSON.parse(runCli(['verify', '--bundle', dir], env));
   assert.equal(out.regressed, 1);
   assert.equal(out.resolved, 0);
   assert.equal(out.stillOpen, 0);
-  assert.equal(out.posted, 1);
+  assert.equal(out.posted, 2); // der Rueckfall plus Fall E, der noch keinen Thread hat
   assert.equal(out.reviewId, 4711);
 
   const sent = JSON.parse(readFileSync(capture, 'utf8'));
   assert.equal(sent.commit_id, 'head');
   assert.equal(sent.event, 'COMMENT');
   // Der Rueckfall steht wieder am Code -- nicht in skippedExisting, obwohl seine ID
-  // einem existierenden Thread gehoert.
-  assert.equal(sent.comments.length, 1);
-  assert.equal(sent.comments[0].path, 'src/A.java');
+  // einem existierenden Thread gehoert. Ueber die ID geprueft, nicht ueber die Zahl:
+  // eine Zahl waere auch von einem beliebigen anderen Kommentar erfuellt.
+  assert.ok(
+    sent.comments.some((c) => c.body.includes(`id=${rueckfallId}`)),
+    'der zurueckgekehrte Befund steht nicht unter den gesetzten Kommentaren',
+  );
+  assert.ok(sent.comments.every((c) => c.path === 'src/A.java'));
   assert.match(sent.body, /Rückfall: 1 Befund war/);
   assert.match(sent.body, /Verworfen: 1/);
   assert.match(sent.body, /Evidenz im Bundle nicht auffindbar/);

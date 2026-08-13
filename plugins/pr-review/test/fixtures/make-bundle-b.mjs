@@ -15,6 +15,11 @@
 // dass jede gepflanzte Evidenz woertlich auffindbar und ihre Zeile kommentierbar ist.
 // Ohne diese Pruefung waere das Bundle eine Falle: ein Analyst faende korrekt, was der
 // Validator anschliessend verwirft — und man tunte am Prompt herum statt am Bundle.
+//
+// `muss` traegt einen Namen ODER eine Liste. Eine Liste heisst: dieser Ort gehoert
+// mehreren Analysten, jeder aus eigenem Recht -- das ist die gepflanzte Ueberlappung, an
+// der sich Clustern und Severity-Erhoehung ueberhaupt messen lassen. `darfNicht` ist die
+// Gegenrichtung: dort muss der genannte Analyst schweigen.
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { commentableRanges } from '../../lib/diff.mjs';
@@ -342,7 +347,18 @@ export const PLANTED = [
   },
   {
     fall: 'pull_request_target mit Checkout des PR-Standes',
-    muss: 'workflow-ci',
+    // Zwei Namen, und beide zu Recht: workflow-ci sieht den Ausloeser samt Checkout des
+    // Fork-Standes, security-context sieht den geoeffneten Weg -- Fork-Code laeuft mit den
+    // Rechten des Zielrepos. Das ist NICHT die ${{ }}-Injection zwei Zeilen weiter unten;
+    // die gehoert actionlint und steht als eigene Sonde in dieser Liste.
+    //
+    // Der Eintrag ist zugleich die einzige gepflanzte Ueberlappung des Bundles. Seit der
+    // Cluster-Schluessel das Zitat ist, entsteht Ueberlappung nur noch aus einem
+    // GETEILTEN Zitat; vorher genuegten drei Zeilen Abstand, und die Zusicherung "dieses
+    // Bundle kann Ueberlappung ueberhaupt ausloesen" hing damit an der Toleranz statt an
+    // der Landkarte. Im Messlauf vom 13.08. haben beide Analysten diese Zeile tatsaechlich
+    // zitiert -- gepflanzt ist hier eine Messung, keine Vermutung.
+    muss: ['workflow-ci', 'security-context'],
     file: '.github/workflows/release.yml',
     evidence: 'ref: ${{ github.event.pull_request.head.sha }}',
     line: 14,

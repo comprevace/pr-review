@@ -116,9 +116,14 @@ gemeldet wurde. Das ist die Rückfalllinie, nicht der Regelweg: dein `--skipped`
 für den Leser brauchbar, dieser hier sagt nur „unklar". Gib bei `--only <name>` also die
 übrigen Analysten als `--skipped` mit, sonst stehen sie als ausgefallen in der Bilanz.
 
-Die CLI validiert die Befunde, verwirft Erfundenes, clustert Überlappungen, hebt die
-Severity bei Mehrfachbefunden, prüft jeden Zeilenanker gegen den Diff und postet
-**einen** Review mit `event: COMMENT`.
+Die CLI validiert die Befunde, verwirft Erfundenes, fasst Befunde **mit demselben Zitat**
+zu einem Kommentar zusammen, hebt dessen Severity um eine Stufe, wenn zwei Analysten die
+Stelle unabhängig voneinander gleich schwer eingeordnet haben, prüft jeden Zeilenanker
+gegen den Diff und postet **einen** Review mit `event: COMMENT`.
+
+Zwei Befunde auf derselben Zeile mit **verschiedenen** Zitaten bleiben deshalb zwei
+Kommentare. Das ist Absicht: ein Kommentar trägt einen Auftrag, und der Adressat ist ein
+Coding-Agent.
 
 ## Phase 5 — Bilanz an den Aufrufer
 

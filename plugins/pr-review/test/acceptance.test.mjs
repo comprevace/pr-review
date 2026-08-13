@@ -43,19 +43,36 @@ test('lib/cli.mjs laesst sich importieren, ohne den Prozess zu beenden', () => {
 
 test('Fall A+B: ein Kommentar, zwei Tags, Severity auf blocker erhoeht', () => {
   const result = run();
-  assert.equal(result.comments.length, 1, 'genau ein Inline-Kommentar erwartet');
-  const cluster = result.report.posted[0];
+  const cluster = result.report.posted.find((c) => c.analysts.length === 2);
+  assert.ok(cluster, 'kein Cluster mit zwei Analysten');
   assert.equal(cluster.file, 'src/A.java');
   assert.deepEqual(cluster.analysts.slice().sort(), ['gate-integrity', 'spec-fidelity']);
   assert.equal(cluster.baseSeverity, 'major');
   assert.equal(cluster.severity, 'blocker');
   assert.equal(cluster.escalated, true);
-  const body = result.comments[0].body;
+  // Beide Items tragen dasselbe Zitat -- daran haengt die Identitaet des Threads.
+  assert.ok(cluster.items.every((i) => i.evidence === '@Disabled("flaky")'));
+  const body = result.comments.find((c) => c.body.includes('Gate-Integrität')).body;
   assert.match(body, /blocker/);
   assert.match(body, /`Gate-Integrität` \+ `Spec-Treue`/);
   assert.match(body, /von major erhöht/);
   assert.match(body, /@Disabled\("flaky"\)/);
-  assert.match(body, /assertTrue\(true\);/);
+});
+
+test('Fall E: ein anderes Zitat zwei Zeilen daneben bleibt ein eigener Kommentar', () => {
+  // Die Gegenrichtung zu A+B, und der Grund, aus dem die Cluster-Achse gewechselt hat:
+  // unter der alten Toleranz von drei Zeilen wanderte dieser Befund in den Kommentar von
+  // A+B, dessen Severity mit erhoeht und dessen Auftrag als vierter Absatz. Bei neun
+  // Analysten wurden daraus Kommentare mit fuenf und sieben Auftraegen. Ein Fix-Agent
+  // kann so einen Kommentar nicht abarbeiten, und der Zweitlauf kann ihn nicht aufloesen.
+  const result = run();
+  assert.equal(result.comments.length, 2, 'A+B und E erwartet, nicht verschmolzen');
+  const allein = result.report.posted.find((c) => c.analysts.length === 1);
+  assert.ok(allein, 'kein Einzelbefund-Cluster');
+  assert.deepEqual(allein.analysts, ['spec-fidelity']);
+  assert.equal(allein.items[0].evidence, 'assertTrue(true);');
+  assert.equal(allein.severity, 'major');
+  assert.equal(allein.escalated, false, 'ein einzelner Analyst erhoeht nichts');
 });
 
 test('Fall C: Befund ausserhalb der Hunks landet in der Bilanz, nicht am Code', () => {
@@ -116,5 +133,5 @@ test('ein zweiter Lauf mit denselben Befunden postet nichts doppelt', () => {
   );
   const second = run(dir);
   assert.equal(second.comments.length, 0);
-  assert.equal(second.report.skippedExisting.length, 1);
+  assert.equal(second.report.skippedExisting.length, 2);
 });

@@ -18,6 +18,12 @@ const commentable = new Map(bundle.meta.files.map((f) => [f.path, f.commentable]
 const analysts = loadAnalysts([join(import.meta.dirname, '..', 'analysts')]);
 const analystMap = new Map(analysts.map((a) => [a.name, a]));
 
+// `muss` ist ein Name oder eine Liste. Ein Ort kann mehreren Analysten gehoeren -- und
+// genau daran haengt die einzige Zusicherung, dass dieses Bundle Ueberlappung ausloesen
+// kann. Ueberall normalisieren statt an drei Stellen auf den Typ zu pruefen: sonst faellt
+// ein Eintrag als Liste durch einen Test und als String durch einen anderen.
+const mussListe = (p) => (p.muss === null || p.muss === undefined ? [] : [p.muss].flat());
+
 // Der Kern dieser Datei. Ein Tuning-Bundle, in dem eine gepflanzte Evidenz nicht
 // auffindbar oder ihre Zeile nicht kommentierbar ist, ist schlimmer als keins: Der
 // Analyst findet den Fall korrekt, der Validator wirft ihn weg, und man sucht den Fehler
@@ -25,7 +31,7 @@ const analystMap = new Map(analysts.map((a) => [a.name, a]));
 // ihn im Ernstfall bewertet -- nicht durch eine nachgebaute Pruefung.
 test('jede gepflanzte Evidenz ueberlebt den echten Validator', () => {
   for (const p of PLANTED) {
-    const analyst = p.muss ?? p.darfNicht[0];
+    const analyst = mussListe(p)[0] ?? p.darfNicht[0];
     const result = validateFinding({
       analyst,
       file: p.file,
@@ -61,7 +67,7 @@ test('jeder Analyst des Rosters hat mindestens einen Fall oder eine Sonde', () =
   // das faellt beim Tunen nicht auf, sondern sieht aus wie ein stiller Analyst.
   const abgedeckt = new Set();
   for (const p of PLANTED) {
-    if (p.muss) abgedeckt.add(p.muss);
+    for (const n of mussListe(p)) abgedeckt.add(n);
     for (const n of p.darfNicht ?? []) abgedeckt.add(n);
   }
   const fehlend = analysts.map((a) => a.name).filter((n) => !abgedeckt.has(n));
@@ -71,7 +77,7 @@ test('jeder Analyst des Rosters hat mindestens einen Fall oder eine Sonde', () =
 test('die Namen in der Landkarte sind echte Analysten', () => {
   // Ein Tippfehler in PLANTED wuerde den Abdeckungstest oben stillschweigend erfuellen.
   for (const p of PLANTED) {
-    for (const name of [p.muss, ...(p.darfNicht ?? [])].filter(Boolean)) {
+    for (const name of [...mussListe(p), ...(p.darfNicht ?? [])]) {
       assert.ok(analystMap.has(name), `unbekannter Analyst in der Landkarte: ${name}`);
     }
   }
@@ -87,22 +93,24 @@ test('das Bundle traegt den Kontext, den die Faelle brauchen', () => {
 });
 
 test('mindestens ein Fall erzeugt eine echte Ueberlappung', () => {
-  // Die Severity-Eskalation ist das einzige Redundanzsignal des Konzepts und ausserhalb
-  // von Bundle A nie ausgeloest worden. Ohne einen Ort, an dem zwei disjunkte
-  // Blickrichtungen denselben Bereich treffen, laesst sie sich am Roster nicht messen.
-  const proDatei = new Map();
-  for (const p of PLANTED.filter((x) => x.muss)) {
-    if (!proDatei.has(p.file)) proDatei.set(p.file, []);
-    proDatei.get(p.file).push(p);
+  // Die Severity-Erhoehung ist das einzige Redundanzsignal des Konzepts. Ohne einen Ort,
+  // an dem zwei disjunkte Blickrichtungen zusammentreffen, laesst sie sich am Roster
+  // nicht messen.
+  //
+  // Diese Probe stand vorher auf "zwei Faelle liegen hoechstens drei Zeilen auseinander"
+  // -- und war damit an die alte Cluster-Achse gebunden, nicht an die Landkarte. Als die
+  // Achse auf das Zitat wechselte, blieb der Test gruen und die Zusicherung war weg:
+  // Bundle B enthielt keine gepflanzte Ueberlappung mehr, und keine Probe sagte es.
+  // Jetzt zaehlt, was das Clustern auch zaehlt -- ein GETEILTES Zitat.
+  const proZitat = new Map();
+  for (const p of PLANTED) {
+    const key = `${p.file}\u0000${p.side ?? 'RIGHT'}\u0000${p.evidence.replace(/\s+/g, ' ').trim()}`;
+    if (!proZitat.has(key)) proZitat.set(key, new Set());
+    for (const name of mussListe(p)) proZitat.get(key).add(name);
   }
-  const ueberlappend = [...proDatei.values()].some((liste) => {
-    for (const a of liste) {
-      for (const b of liste) {
-        if (a === b || a.muss === b.muss) continue;
-        if ((a.side ?? 'RIGHT') === (b.side ?? 'RIGHT') && Math.abs(a.line - b.line) <= 3) return true;
-      }
-    }
-    return false;
-  });
-  assert.ok(ueberlappend, 'kein Fallpaar liegt nah genug fuer ein Cluster');
+  const geteilt = [...proZitat.entries()].filter(([, namen]) => namen.size >= 2);
+  assert.ok(
+    geteilt.length >= 1,
+    'kein gepflanztes Zitat gehoert zwei Analysten -- das Bundle kann keine Ueberlappung ausloesen',
+  );
 });
