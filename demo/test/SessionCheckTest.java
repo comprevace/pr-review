@@ -1,13 +1,15 @@
 package demo;
 
-import org.junit.jupiter.api.Disabled;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
 import org.junit.jupiter.api.Test;
 
 class SessionCheckTest {
 
   @Test
-  @Disabled("flaky")
   void rejectsExpiredSession() {
-    assertTrue(true);
+    assertFalse(new SessionCheck().isExpired(30));
+    assertTrue(new SessionCheck().isExpired(31));
   }
 }
