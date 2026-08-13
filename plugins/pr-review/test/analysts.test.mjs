@@ -9,7 +9,7 @@ const ROOT = join(import.meta.dirname, '..');
 test('die generischen Analysten laden fehlerfrei', () => {
   const list = loadAnalysts([join(ROOT, 'analysts')]);
   const names = list.map((a) => a.name).sort();
-  assert.deepEqual(names, ['gate-integrity', 'spec-fidelity', 'test-substance']);
+  assert.deepEqual(names, ['gate-integrity', 'security-context', 'spec-fidelity', 'test-substance']);
 });
 
 test('alle laufen immer und haben sinnvolle Severity-Deckel', () => {
@@ -23,13 +23,45 @@ test('alle laufen immer und haben sinnvolle Severity-Deckel', () => {
   // ausgehebelt findet.
   assert.equal(byName.get('test-substance').when, 'always');
   assert.equal(byName.get('test-substance').severity_max, 'major');
+  // blocker, weil eine fehlende Autorisierungspruefung im Merge-Fall kein Mangel ist,
+  // sondern ein Vorfall. Dieser Analyst ersetzt die frueher vorgesehene separate
+  // Security-Action und muss deren Gewicht tragen koennen.
+  assert.equal(byName.get('security-context').when, 'always');
+  assert.equal(byName.get('security-context').severity_max, 'blocker');
 });
 
 test('alle laufen auch bei einem Diff ohne passende Endung', () => {
   const list = loadAnalysts([join(ROOT, 'analysts')]);
   const { selected, skipped } = selectAnalysts(list, ['README.md']);
-  assert.equal(selected.length, 3);
+  assert.equal(selected.length, 4);
   assert.deepEqual(skipped, []);
+});
+
+test('security-context haelt sich von dem fern, was ein Scanner deterministisch prueft', () => {
+  // Prinzip 2 des Konzepts: ein LLM-Analyst ist nur berechtigt, wo kein Werkzeug die
+  // Sache besser prueft. Kein Analyst ist so versucht wie dieser -- Secrets im Klartext
+  // und bekannte CVEs sind das Erste, wonach ein Sicherheitsprompt sucht, und beides ist
+  // bereits deterministisch abgedeckt. Ohne die ausdrueckliche Ausgrenzung liefert er
+  // Doppelbefunde zu Gitleaks und osv-scanner, und der Leser gewoehnt sich daran, ihn zu
+  // ueberblaettern.
+  const byName = new Map(loadAnalysts([join(ROOT, 'analysts')]).map((a) => [a.name, a]));
+  const abgrenzung = byName.get('security-context').body.split('NICHT deine Sache')[1] ?? '';
+  assert.match(abgrenzung, /Gitleaks|Secret/i, 'muss Secrets im Klartext ausgrenzen');
+  assert.match(abgrenzung, /osv-scanner|CVE/i, 'muss bekannte CVEs ausgrenzen');
+  assert.match(abgrenzung, /gate-integrity/, 'muss die Stilllegung von Pruefungen abgrenzen');
+});
+
+test('security-context verlangt Zurueckhaltung, wo die Kontextgrenze urteilt', () => {
+  // Der gefaehrlichste Analyst fuer Falschbefunde: Autorisierung wird haeufig zentral
+  // erzwungen -- in einem Interceptor, einer Filterkette, einer Policy-Datei -- und
+  // nichts davon liegt im Bundle. Ein Prompt, der aus "hier steht kein @PreAuthorize"
+  // auf "hier fehlt die Pruefung" schliesst, produziert genau die Alarm-Muedigkeit, die
+  // das Konzept vermeiden will. Er muss also sagen duerfen, was er nicht sehen konnte.
+  const byName = new Map(loadAnalysts([join(ROOT, 'analysts')]).map((a) => [a.name, a]));
+  const body = byName.get('security-context').body;
+  assert.match(body, /niedrig/, 'muss den Weg ueber confidence: niedrig benennen');
+  assert.match(body, /zentral|Interceptor|Filterkette|an anderer Stelle/i,
+    'muss den Fall der anderswo erzwungenen Kontrolle behandeln');
 });
 
 test('test-substance warnt vor dem Zitat aus einer unveraenderten Testdatei', () => {
