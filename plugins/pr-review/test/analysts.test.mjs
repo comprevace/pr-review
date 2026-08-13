@@ -6,25 +6,54 @@ import { loadAnalysts, selectAnalysts, parseFrontmatter } from '../lib/registry.
 
 const ROOT = join(import.meta.dirname, '..');
 
-test('die zwei Referenz-Analysten laden fehlerfrei', () => {
+test('die generischen Analysten laden fehlerfrei', () => {
   const list = loadAnalysts([join(ROOT, 'analysts')]);
   const names = list.map((a) => a.name).sort();
-  assert.deepEqual(names, ['gate-integrity', 'spec-fidelity']);
+  assert.deepEqual(names, ['gate-integrity', 'spec-fidelity', 'test-substance']);
 });
 
-test('beide laufen immer und haben sinnvolle Severity-Deckel', () => {
+test('alle laufen immer und haben sinnvolle Severity-Deckel', () => {
   const byName = new Map(loadAnalysts([join(ROOT, 'analysts')]).map((a) => [a.name, a]));
   assert.equal(byName.get('gate-integrity').when, 'always');
   assert.equal(byName.get('gate-integrity').severity_max, 'blocker');
   assert.equal(byName.get('spec-fidelity').when, 'always');
   assert.equal(byName.get('spec-fidelity').severity_max, 'major');
+  // major und nicht blocker: ein schwacher Test ist ein Mangel mit Folgen, aber er
+  // haehlt nichts aus -- den Deckel blocker traegt nur, wer eine Pruefschicht
+  // ausgehebelt findet.
+  assert.equal(byName.get('test-substance').when, 'always');
+  assert.equal(byName.get('test-substance').severity_max, 'major');
 });
 
-test('beide laufen auch bei einem Diff ohne passende Endung', () => {
+test('alle laufen auch bei einem Diff ohne passende Endung', () => {
   const list = loadAnalysts([join(ROOT, 'analysts')]);
   const { selected, skipped } = selectAnalysts(list, ['README.md']);
-  assert.equal(selected.length, 2);
+  assert.equal(selected.length, 3);
   assert.deepEqual(skipped, []);
+});
+
+test('test-substance warnt vor dem Zitat aus einer unveraenderten Testdatei', () => {
+  // Dieser Analyst bekommt tests/ zwangslaeufig in die Hand -- es ist sein Gegenstand.
+  // Genau von dort ist ein Zitat aber maschinell nicht auffindbar und wird verworfen.
+  // Ohne den Hinweis im eigenen Prompt produziert ausgerechnet er den Ausschuss, den
+  // der Kontrakt-Test unten beschreibt: woertlich richtig zitiert, trotzdem weg. Das
+  // ist dieselbe Fehlerklasse wie der Kontrakt, der zu confidence: niedrig riet und
+  // damit Befunde erzeugte, die der Validator verwirft.
+  const byName = new Map(loadAnalysts([join(ROOT, 'analysts')]).map((a) => [a.name, a]));
+  const body = byName.get('test-substance').body;
+  assert.match(body, /unverändert/i, 'muss den Fall der unveraenderten Testdatei behandeln');
+  assert.match(body, /nicht zitierbar|nicht zitier|verworfen/i, 'muss sagen, dass von dort kein Zitat stammen darf');
+});
+
+test('test-substance grenzt sich gegen seine zwei Nachbarn ab', () => {
+  // Die beiden, mit denen er sich am leichtesten ueberschneidet, benennen ihn bereits
+  // als Eigentuemer der Testqualitaet. Nennt er sie nicht zurueck, meldet er das, was
+  // ihnen gehoert, mit -- und die Mehrfachbefund-Erhoehung zeigt dann nicht mehr echte
+  // Mehrfachbetroffenheit an, sondern nur noch unscharfe Reviergrenzen.
+  const byName = new Map(loadAnalysts([join(ROOT, 'analysts')]).map((a) => [a.name, a]));
+  const abgrenzung = byName.get('test-substance').body.split('NICHT deine Sache')[1] ?? '';
+  assert.match(abgrenzung, /gate-integrity/);
+  assert.match(abgrenzung, /spec-fidelity/);
 });
 
 test('jeder Analyst hat den Pflichtabschnitt zur Abgrenzung', () => {
