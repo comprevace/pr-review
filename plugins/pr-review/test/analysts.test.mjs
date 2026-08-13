@@ -236,6 +236,32 @@ test('security-context meldet keine ${{ }}-Injection — die prueft actionlint',
   assert.match(abgrenzung, /workflow-ci/, 'muss den Nachbarn benennen, der Workflows prueft');
 });
 
+test('security-context gibt pull_request_target nicht an workflow-ci ab', () => {
+  // Regression aus der actionlint-Abgrenzung, gefunden im Messlauf vom 13.08.: der Satz
+  // "was am Ausloeser und an den Rechten haengt, gehoert workflow-ci" nahm security-context
+  // nicht nur die ${{ }}-Interpolation (richtig), sondern auch pull_request_target mit
+  // Checkout des Fork-Standes (falsch). Bundle B sichert diesen Fall seit der Sonden-
+  // Erweiterung BEIDEN Analysten zu -- im Messlauf davor hatten beide ihn gemeldet. Die
+  // Abgrenzung widersprach also der eigenen Landkarte: ein Fix gegen einen Befund zerstoerte
+  // die Eigenschaft, die zwei Commits vorher als gepflanzte Ueberlappung zugesichert war.
+  //
+  // Der Schnitt muss schmal sein: ausgegrenzt ist die Interpolation, nicht der Ausloeser.
+  // Kein Satz der Abgrenzung darf pull_request_target einem anderen zuschlagen, und
+  // mindestens einer muss es ausdruecklich als eigenen Befund behaupten.
+  const byName = new Map(loadAnalysts([join(ROOT, 'analysts')]).map((a) => [a.name, a]));
+  const abgrenzung = byName.get('security-context').body.split('NICHT deine Sache')[1] ?? '';
+  const saetze = abgrenzung.split(/(?<=\.)\s+/);
+  const mitTrigger = saetze.filter((s) => /pull_request_target/.test(s));
+  assert.ok(mitTrigger.length > 0,
+    'die Abgrenzung muss pull_request_target ausdruecklich behandeln -- Schweigen liesse die Grenze offen');
+  for (const satz of mitTrigger) {
+    assert.doesNotMatch(satz, /geh[öo]rt\s+`?workflow-ci/,
+      'pull_request_target darf nicht workflow-ci zugeschlagen werden -- Bundle B sichert den Fall beiden zu');
+  }
+  assert.ok(mitTrigger.some((s) => /dein Befund|meldest du/.test(s)),
+    'die Abgrenzung muss pull_request_target als eigenen Befund behaupten');
+});
+
 test('gate-integrity erfindet keinen Anker fuer eine fehlende Testdatei', () => {
   // Gemessen am 13.08.: gate-integrity verankerte "UI-Komponente ohne jede Testdatei" auf
   // der watch-Zeile -- derselben, die vue-ts fuer seinen Reaktivitaetsbefund zitiert.
@@ -262,6 +288,28 @@ test('gate-integrity erfindet keinen Anker fuer eine fehlende Testdatei', () => 
   assert.match(abgrenzung, /Bilanz/, 'muss sagen, wo der Befund stattdessen steht');
   assert.match(abgrenzung, /Abwesenheit|abwesend|fehlt.*Anker|keinen eigenen Anker/i,
     'muss die Regel fuer Befunde ohne eigenen Anker benennen');
+});
+
+test('gate-integrity leiht sich fuer den Workflow-ohne-Bezug-Befund keinen Anker', () => {
+  // Zweite Stelle desselben Lecks, gefunden im Messlauf vom 13.08.: gate-integrity meldete
+  // "Neuer CI-Workflow ohne Bezug zum PR-Inhalt" und zitierte dafuer permissions: write-all
+  // -- die Zeile, die workflow-ci fachlich prueft. Gemeinsames Cluster, beide major,
+  // Erhoehung auf blocker. Die Abwesenheitsregel aus Befund 4 griff nicht, weil "ohne Bezug
+  // zum PR" nicht wie eine Abwesenheit klingt -- es ist aber eine: der fehlende Bezug hat
+  // keine eigene Zeile.
+  //
+  // Anders als bei missing_tests bleibt der Fall ein Inline-Befund, denn er traegt eine
+  // sichtbare Aenderung: den neuen Workflow selbst. Der Prompt muss deshalb den Anker
+  // vorschreiben, der die Aenderung zeigt (die name:-Zeile), und die geliehenen Zeilen
+  // ausdruecklich verbieten.
+  const byName = new Map(loadAnalysts([join(ROOT, 'analysts')]).map((a) => [a.name, a]));
+  const [blick, abgrenzung = ''] = byName.get('gate-integrity').body.split('NICHT deine Sache');
+  assert.match(blick, /nichts mit CI zu tun/, 'das Suchmuster selbst muss bleiben -- der Fall ist echt');
+  assert.match(blick, /`name:`/, 'muss den Anker vorschreiben, der die Aenderung selbst zeigt');
+  assert.match(blick, /permissions|Ausl[öo]ser/i, 'muss die Zeilen benennen, die Nachbarn gehoeren');
+  assert.match(blick, /leih|geliehen/i, 'muss das Leihen beim Namen nennen');
+  assert.match(abgrenzung, /ohne Bezug|klingt nicht/i,
+    'die Abwesenheitsregel muss die getarnte Abwesenheit abdecken, sonst greift sie wieder nicht');
 });
 
 test('security-context verlangt Zurueckhaltung, wo die Kontextgrenze urteilt', () => {

@@ -67,6 +67,25 @@ test('ein Analyst ohne Datei und ohne Meldung wird von der CLI selbst benannt', 
   assert.match(declaredBody, /nicht gestartet — spec-fidelity: im Tuning-Modus nicht gestartet/);
 });
 
+test('run.log haelt jeden Lauf fest — das MaRisk-Artefakt aus dem Design existiert', () => {
+  // Design 5.2 und 9.4 beschreiben run.log als Artefakt der Nachvollziehbarkeit; bis
+  // 0.12.0 schrieb kein Code die Datei -- "steht drin und existiert nicht". Geprueft
+  // wird das Format (Zeitstempel + Kommando) und dass ein zweiter Lauf ANHAENGT:
+  // fetch, post und verify desselben Bundles muessen EINE Akte ergeben, sonst
+  // ueberschreibt der Zweitlauf genau die Zeile, die er nachvollziehbar machen soll.
+  const dir = freshBundle('prr-cli-runlog-');
+  runCli(['post', '--bundle', dir, '--dry-run']);
+  const first = readFileSync(join(dir, 'run.log'), 'utf8').trim().split('\n');
+  assert.equal(first.length, 1);
+  assert.match(first[0], /^\d{4}-\d{2}-\d{2}T[\d:.]+Z post /);
+  assert.match(first[0], /dry-run/);
+  assert.match(first[0], /posted=2/);
+
+  runCli(['post', '--bundle', dir, '--dry-run']);
+  const second = readFileSync(join(dir, 'run.log'), 'utf8').trim().split('\n');
+  assert.equal(second.length, 2, 'der zweite Lauf muss anhaengen, nicht ueberschreiben');
+});
+
 // gh-Ersatz auf dem PATH. Unterscheidet die drei Aufrufe, die der Zweitlauf macht:
 // Thread-Abfrage, resolve-Mutation, Review-POST. Der POST-Body wird mitgeschrieben --
 // er ist das, worauf es ankommt.

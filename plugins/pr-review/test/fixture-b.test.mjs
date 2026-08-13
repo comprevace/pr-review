@@ -155,3 +155,26 @@ test('die Sonde fuer den geliehenen Anker deckt sich mit dem Prompt', () => {
 
   assert.deepEqual([...sonde.darfNicht].sort(), nennenMissingTests);
 });
+
+test('die Sonde fuer den Workflow-ohne-Bezug-Anker deckt sich mit dem Prompt', () => {
+  // Zweite Stelle des geliehenen Ankers, gemessen am 13.08.: gate-integrity zitierte
+  // permissions: write-all fuer "Neuer CI-Workflow ohne Bezug zum PR-Inhalt". Anders als
+  // bei missing_tests bleibt der Fall ein Inline-Befund -- er traegt eine sichtbare
+  // Aenderung, den Workflow selbst. Das Paar aus muss-Eintrag (der vorgeschriebene Anker)
+  // und Sonde (die verbotene Zeile) haelt beide Haelften zusammen: faellt der Prompt-Fix,
+  // schlaegt die Sonde im Messlauf an; faellt die Sonde, sagt dieser Test es.
+  const sonde = PLANTED.find((p) => (p.darfNicht ?? []).includes('gate-integrity')
+    && p.file === '.github/workflows/release.yml');
+  assert.ok(sonde, 'die write-all-Sonde gegen den geliehenen Anker fehlt in der Landkarte');
+  assert.equal(sonde.evidence, 'permissions: write-all');
+
+  const anker = PLANTED.find((p) => mussListe(p).includes('gate-integrity')
+    && p.file === '.github/workflows/release.yml');
+  assert.ok(anker, 'der muss-Eintrag fuer den vorgeschriebenen Anker fehlt in der Landkarte');
+  assert.equal(anker.evidence, 'name: Release');
+
+  // Der Prompt muss genau den Anker vorschreiben, den die Landkarte erwartet -- sonst
+  // misst der Messlauf eine Vorhersage statt einer Vorschrift.
+  const blick = analystMap.get('gate-integrity').body.split('NICHT deine Sache')[0];
+  assert.match(blick, /`name:`/, 'gate-integrity muss die name:-Zeile als Anker vorschreiben');
+});

@@ -185,6 +185,7 @@ es einen gibt, der dieselbe Sache zeigt.
 ### Mehrfachbefunde sind erwünscht
 
 Andere Analysten sehen dasselbe Bundle mit anderer Blickrichtung. Wenn du und ein
-anderer denselben Ort treffen, wird daraus **ein** Kommentar mit beiden Tags und
-erhöhter Severity. Das ist Absicht. Schiele nicht darauf, was andere melden — halte
-dich an deine Blickrichtung.
+anderer **dasselbe Fragment zitieren**, wird daraus **ein** Kommentar mit beiden Tags;
+ordnet ihr die Stelle unabhängig voneinander gleich schwer ein, steigt die Severity um
+eine Stufe. Das ist Absicht. Schiele nicht darauf, was andere melden — halte dich an
+deine Blickrichtung.

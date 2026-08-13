@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { readFileSync, readdirSync, existsSync, writeFileSync, realpathSync } from 'node:fs';
+import { readFileSync, readdirSync, existsSync, writeFileSync, appendFileSync, realpathSync } from 'node:fs';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { ghApi, currentRepo, ghGraphql } from './gh.mjs';
@@ -23,6 +23,15 @@ function pluginVersion() {
   } catch {
     return '0.0.0';
   }
+}
+
+// Das MaRisk-Artefakt aus dem Design (5.2, 9.4): je Bundle eine Akte, die festhaelt,
+// was wann gegen welchen PR lief. Angehaengt, nie ueberschrieben -- fetch, post und
+// verify desselben Bundles muessen zusammen lesbar bleiben, sonst loescht der Zweitlauf
+// genau die Zeile, die er nachvollziehbar machen soll. Bei Fehlern steht der
+// HTTP-Status mit in der Zeile, soweit gh ihn hergibt.
+function logRun(bundleDir, text) {
+  appendFileSync(join(bundleDir, 'run.log'), `${new Date().toISOString()} ${text}\n`);
 }
 
 function parseArgs(argv) {
@@ -55,6 +64,7 @@ async function cmdFetch(positional, flags) {
     }
   }
   const summary = await buildBundle({ repo, number, ghApi });
+  logRun(summary.dir, `fetch ${repo}#${number} files=${summary.files} changedLines=${summary.changedLines}`);
   process.stdout.write(`${JSON.stringify(summary, null, 2)}\n`);
 }
 
@@ -278,11 +288,22 @@ async function cmdPost(positional, flags) {
   };
 
   if (flags['dry-run']) {
+    logRun(bundleDir, `post ${repo}#${number} dry-run posted=${stats.posted} anchorless=${stats.anchorless} capped=${stats.capped} skippedExisting=${stats.skippedExisting}`);
     process.stdout.write(`${JSON.stringify({ ...stats, payloadPath: join(bundleDir, 'payload.json') }, null, 2)}\n`);
     return;
   }
 
-  const review = await ghApi(`/repos/${repo}/pulls/${number}/reviews`, { method: 'POST', body: payload });
+  let review;
+  try {
+    review = await ghApi(`/repos/${repo}/pulls/${number}/reviews`, { method: 'POST', body: payload });
+  } catch (err) {
+    // Der Fehlerfall gehoert zuerst in die Akte: payload.json bleibt liegen und wird
+    // per --from-payload nachgereicht -- ohne diese Zeile fehlte dem Nachreichen der
+    // Anlass im Protokoll.
+    logRun(bundleDir, `post ${repo}#${number} FEHLER${err.status ? ` http=${err.status}` : ''}: ${err.message}`);
+    throw err;
+  }
+  logRun(bundleDir, `post ${repo}#${number} posted=${stats.posted} reviewId=${review?.id}`);
   process.stdout.write(`${JSON.stringify({ ...stats, reviewId: review?.id, url: review?.html_url }, null, 2)}\n`);
 }
 
@@ -386,6 +407,7 @@ async function cmdVerify(positional, flags) {
   writeFileSync(join(bundleDir, 'payload.json'), JSON.stringify(payload, null, 2));
 
   if (flags['dry-run']) {
+    logRun(bundleDir, `verify ${repo}#${number} dry-run resolved=${delta.counts.resolved} stillOpen=${delta.counts.stillOpen} fresh=${delta.counts.fresh} regressed=${delta.counts.regressed}`);
     process.stdout.write(`${JSON.stringify({ ...delta.counts, dryRun: true, wouldPost: result.comments.length }, null, 2)}\n`);
     return;
   }
@@ -393,7 +415,14 @@ async function cmdVerify(positional, flags) {
   for (const threadId of delta.resolvable) {
     await resolveThread({ threadId, ghGraphql });
   }
-  const review = await ghApi(`/repos/${repo}/pulls/${number}/reviews`, { method: 'POST', body: payload });
+  let review;
+  try {
+    review = await ghApi(`/repos/${repo}/pulls/${number}/reviews`, { method: 'POST', body: payload });
+  } catch (err) {
+    logRun(bundleDir, `verify ${repo}#${number} FEHLER${err.status ? ` http=${err.status}` : ''}: ${err.message}`);
+    throw err;
+  }
+  logRun(bundleDir, `verify ${repo}#${number} resolved=${delta.counts.resolved} regressed=${delta.counts.regressed} posted=${result.comments.length} reviewId=${review?.id}`);
   process.stdout.write(`${JSON.stringify({ ...delta.counts, posted: result.comments.length, reviewId: review?.id }, null, 2)}\n`);
 }
 
