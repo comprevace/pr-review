@@ -5,9 +5,12 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { bundlePathFor, testCandidates, resolveSpecPath, buildBundle, loadBundle } from '../lib/bundle.mjs';
 
-test('bundlePathFor trennt Owner und Repo eindeutig', () => {
+test('bundlePathFor liegt ausserhalb von ~/.claude und trennt Owner und Repo', () => {
   const p = bundlePathFor('example/demo', 55);
-  assert.ok(p.endsWith('/.claude/pr-review/example__demo__55'), p);
+  // ~/.claude ist ein geschuetzter Pfad: dort koennten die Analysten ihre Befunde
+  // nicht ablegen. Diese Zusicherung haelt die Wurzel dauerhaft draussen.
+  assert.ok(p.endsWith('/.cache/pr-review/example__demo__55'), p);
+  assert.doesNotMatch(p, /\.claude/);
 });
 
 test('testCandidates deckt Java- und Frontend-Muster ab', () => {

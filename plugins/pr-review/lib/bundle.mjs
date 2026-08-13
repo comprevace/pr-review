@@ -7,9 +7,13 @@ import { commentableRanges } from './diff.mjs';
 // unvollstaendiges Bundle erzeugt ein stillschweigend unvollstaendiges Review.
 const MAX_FILES = 3000;
 
+// NICHT unter ~/.claude: Claude Code behandelt das eigene Konfigurationsverzeichnis als
+// geschuetzten Pfad und verweigert Agenten jeden Schreibzugriff darauf. Die Analysten
+// koennten ihre findings/*.json dort nie ablegen -- jeder Lauf endete mit "alle
+// Analysten ausgefallen". Live aufgefallen, nicht hergeleitet.
 export function bundlePathFor(repo, number) {
   const [owner, name] = repo.split('/');
-  return join(homedir(), '.claude', 'pr-review', `${owner}__${name}__${number}`);
+  return join(homedir(), '.cache', 'pr-review', `${owner}__${name}__${number}`);
 }
 
 const TEST_SUFFIX_RE = /(Test|Tests|IT)\.java$|\.(spec|test)\.(ts|tsx|js|mjs)$/;
