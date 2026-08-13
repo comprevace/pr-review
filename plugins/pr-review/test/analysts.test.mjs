@@ -9,7 +9,7 @@ const ROOT = join(import.meta.dirname, '..');
 test('die generischen Analysten laden fehlerfrei', () => {
   const list = loadAnalysts([join(ROOT, 'analysts')]);
   const names = list.map((a) => a.name).sort();
-  assert.deepEqual(names, ['consistency', 'gate-integrity', 'java-spring', 'rationale', 'security-context', 'spec-fidelity', 'test-substance', 'vue-ts']);
+  assert.deepEqual(names, ['consistency', 'gate-integrity', 'java-spring', 'rationale', 'security-context', 'spec-fidelity', 'test-substance', 'vue-ts', 'workflow-ci']);
 });
 
 test('alle laufen immer und haben sinnvolle Severity-Deckel', () => {
@@ -47,17 +47,57 @@ test('die sechs Kern-Analysten laufen auch bei einem Diff ohne passende Endung',
   // stattdessen namentlich mit Grund in der Ausfallliste steht, ist der ganze Sinn von
   // when: paths -- und die Zeile, die spaeter in der Bilanz erklaert, warum das Review
   // schmaler ist, als das Roster vermuten laesst.
-  assert.deepEqual(skipped, [
-    { name: 'java-spring', reason: 'kein Pfad im Diff passt auf **/*.java' },
-    { name: 'vue-ts', reason: 'kein Pfad im Diff passt auf **/*.vue, **/*.ts' },
-  ]);
+  assert.deepEqual(skipped.map((s) => s.name), ['java-spring', 'vue-ts', 'workflow-ci']);
+  assert.equal(skipped[0].reason, 'kein Pfad im Diff passt auf **/*.java');
 });
 
 test('java-spring laeuft, sobald eine Java-Datei im Diff steht', () => {
   const list = loadAnalysts([join(ROOT, 'analysts')]);
   const { selected, skipped } = selectAnalysts(list, ['src/main/java/app/Foo.java']);
   assert.equal(selected.length, 7);
-  assert.deepEqual(skipped.map((s) => s.name), ['vue-ts']);
+  assert.deepEqual(skipped.map((s) => s.name), ['vue-ts', 'workflow-ci']);
+});
+
+test('workflow-ci laeuft bei Workflows UND bei Composite Actions', () => {
+  // Der Glob ist bewusst breiter als .github/workflows/**: eine Composite Action ist
+  // ausfuehrbarer CI-Code mit denselben Rechten und denselben Fallen.
+  const list = loadAnalysts([join(ROOT, 'analysts')]);
+  for (const pfad of ['.github/workflows/ci.yml', '.github/actions/setup/action.yml', 'action.yml']) {
+    const { selected } = selectAnalysts(list, [pfad]);
+    assert.ok(selected.some((a) => a.name === 'workflow-ci'), `workflow-ci fehlt bei ${pfad}`);
+  }
+});
+
+test('workflow-ci haengt am Pfad und darf blocker rufen', () => {
+  const byName = new Map(loadAnalysts([join(ROOT, 'analysts')]).map((a) => [a.name, a]));
+  const a = byName.get('workflow-ci');
+  assert.equal(a.when, 'paths');
+  // blocker, weil pull_request_target mit Checkout des PR-Heads direkt ausnutzbar ist
+  // und mit Schreibrecht am Repo endet.
+  assert.equal(a.severity_max, 'blocker');
+  assert.ok(a.paths.includes('.github/workflows/**'));
+  assert.ok(a.paths.some((p) => p.includes('action.y')), 'Composite Actions muessen abgedeckt sein');
+});
+
+test('workflow-ci meldet keine Injection — die prueft actionlint deterministisch', () => {
+  // Der wichtigste Prinzip-2-Schnitt dieses Analysten, und einer, der der Spec
+  // widerspricht: sie listet "Injection ueber ${{ }}" als seine Aufgabe. actionlint hat
+  // dafuer eine eigene Regel und laeuft bereits in der Pipeline. Ein Analyst, der es
+  // trotzdem meldet, erzeugt bei jedem Workflow-PR denselben Doppelbefund.
+  const byName = new Map(loadAnalysts([join(ROOT, 'analysts')]).map((a) => [a.name, a]));
+  const abgrenzung = byName.get('workflow-ci').body.split('NICHT deine Sache')[1] ?? '';
+  assert.match(abgrenzung, /actionlint/i);
+  assert.match(abgrenzung, /Injection|injection/);
+  assert.match(abgrenzung, /gate-integrity/);
+});
+
+test('workflow-ci vermerkt, dass SHA-Pinning spaeter in ein Werkzeug gehoert', () => {
+  // Bewusste Ausnahme: Pinning ist deterministisch pruefbar, aber derzeit prueft es
+  // KEIN Werkzeug im Stack -- damit ist es nach Prinzip 2 heute zulaessig. Der Hinweis
+  // haelt fest, dass es zu entfernen ist, sobald ein Lint-Schritt es uebernimmt. Ohne
+  // ihn bleibt es fuer immer drin, weil niemand mehr weiss, warum es drin war.
+  const byName = new Map(loadAnalysts([join(ROOT, 'analysts')]).map((a) => [a.name, a]));
+  assert.match(byName.get('workflow-ci').body, /deterministisch|Lint-Schritt|Werkzeug/i);
 });
 
 test('vue-ts laeuft bei .vue UND bei .ts', () => {
