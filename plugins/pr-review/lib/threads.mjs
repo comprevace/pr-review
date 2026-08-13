@@ -1,4 +1,4 @@
-import { parseMarker, parseEvidence, evidenceHash } from './comment.mjs';
+import { parseMarker, parseEvidence, evidenceHash, MARKER_VERSION } from './comment.mjs';
 import { normalizeForSearch } from './findings.mjs';
 
 const THREADS_QUERY = `
@@ -113,10 +113,23 @@ export function computeDelta({ clusters, threads, haystacks }) {
       stillOpen.push(thread.marker.id);
       continue;
     }
-    // Ohne ev-Feld (Marker aus einer aelteren Version) oder ohne lesbares Zitat im
-    // Kommentartext fehlt Bedingung (2). Dann bleibt der Thread offen -- lieber
-    // einer zu viel als ein stillschweigend geschlossener echter Befund.
+    // Ohne ev-Feld oder ohne lesbares Zitat im Kommentartext fehlt Bedingung (2). Dann
+    // bleibt der Thread offen -- lieber einer zu viel als ein stillschweigend
+    // geschlossener echter Befund.
     if (thread.marker.ev === null || !thread.evidence) {
+      stillOpen.push(thread.marker.id);
+      continue;
+    }
+    // Ein Marker aus einem aelteren ID-Schema: dieselbe Vorsicht, aber aus dem anderen
+    // Grund -- hier fehlt Bedingung (1). Seine ID wurde nach einer anderen Regel
+    // gebildet und kann in reportedIds gar nicht mehr auftauchen, egal wie oft der
+    // Befund erneut gemeldet wird. Der Test "reportedIds.has(id)" oben ist fuer ihn
+    // also kein Test, sondern ein garantiertes Nein. Ohne diesen Zweig kollabierte die
+    // Zwei-Bedingungen-Regel fuer die ganze Klasse alter Threads auf eine, und eine
+    // umformulierte Zeile genuegte, um einen Befund als behoben zu schliessen, waehrend
+    // er unter neuer ID gerade wieder gepostet wird. Ein Mensch loest diese Threads
+    // einmal von Hand auf; das ist der Preis der Rotation.
+    if (thread.marker.version !== MARKER_VERSION) {
       stillOpen.push(thread.marker.id);
       continue;
     }

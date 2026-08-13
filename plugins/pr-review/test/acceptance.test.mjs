@@ -94,7 +94,7 @@ test('das Review ist ein Kommentar, niemals ein Approve', () => {
 test('jeder Kommentar traegt einen maschinenlesbaren Marker', () => {
   const result = run();
   for (const comment of result.comments) {
-    assert.match(comment.body, /<!-- pr-review:v1 id=[0-9a-f]{6} /);
+    assert.match(comment.body, /<!-- pr-review:v2 id=[0-9a-f]{6} /);
   }
 });
 

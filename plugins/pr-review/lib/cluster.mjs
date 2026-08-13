@@ -68,7 +68,7 @@ function finalize(acc, file, side, haystacks, analystTitles) {
   // Die ID haengt am primaeren Item -- und das ist per Konstruktion items[0].
   const primary = items[0];
   const haystack = haystacks?.get(file) ?? '';
-  const id = findingId(file, primary.evidence, occurrenceIndex(haystack, primary.evidence, primary.line));
+  const id = findingId(file, primary.evidence, occurrenceIndex(haystack, primary.evidence, primary.line), side);
 
   return {
     file,

@@ -130,3 +130,127 @@ test('ein zweites fetch leert findings/ und laesst keine Datei des Vorlaufs steh
   assert.ok(existsSync(join(dir, 'findings')), 'findings/ muss danach existieren');
   assert.deepEqual(readdirSync(join(dir, 'findings')), []);
 });
+
+// Runde 2 desselben PR: a.txt ist inzwischen geloescht. Fuer eine geloeschte Datei holt
+// buildBundle bewusst keinen Volltext -- am head_sha existiert sie nicht mehr.
+function removedApi() {
+  return async (endpoint) => {
+    if (endpoint === '/repos/example/demo/pulls/2') {
+      return { number: 2, title: 't', body: '', user: { login: 'a' }, labels: [],
+        base: { sha: 'b' }, head: { sha: 'h2', ref: 'x' } };
+    }
+    if (endpoint === '/repos/example/demo/pulls/2/files') {
+      return [{ filename: 'a.txt', status: 'removed', additions: 0, deletions: 2, patch: '@@ -1,2 +0,0 @@\n-keep\n-add' }];
+    }
+    if (endpoint === '/repos/example/demo/pulls/2/comments') return [];
+    const err = new Error('Not Found'); err.status = 404; throw err;
+  };
+}
+
+test('ein zweites fetch laesst keinen veralteten Dateistand in files/ stehen', async () => {
+  // Der Kern von Bedingung (2): "steht das Zitat noch im Bundle". Ueberlebt der
+  // Dateistand aus Runde 1, bleibt jedes Zitat auffindbar -- ein wirklich behobener
+  // Befund loest dann NIE auf, und der Zweitlauf verliert genau die Eigenschaft, fuer
+  // die er gebaut wurde. Die Datei steht weiterhin in meta.files, ihr veralteter Text
+  // landet also im Haystack, statt nur nutzlos auf der Platte zu liegen.
+  const dir = join(mkdtempSync(join(tmpdir(), 'prr-stale-')), 'bundle');
+  await buildBundle({ repo: 'example/demo', number: 2, ghApi: bundle2Api(), bundleDir: dir });
+  assert.ok(existsSync(join(dir, 'files/a.txt')), 'Vorbedingung: Runde 1 legt die Datei an');
+
+  await buildBundle({ repo: 'example/demo', number: 2, ghApi: removedApi(), bundleDir: dir });
+
+  assert.equal(existsSync(join(dir, 'files/a.txt')), false, 'geloeschte Datei darf nicht als Volltext ueberleben');
+  assert.equal(loadBundle(dir).fileText.get('a.txt'), undefined);
+});
+
+// Runde 2: a.txt ist noch im PR, kommt aber ohne patch (binaer oder zu gross).
+function patchlessApi() {
+  return async (endpoint) => {
+    if (endpoint === '/repos/example/demo/pulls/2') {
+      return { number: 2, title: 't', body: '', user: { login: 'a' }, labels: [],
+        base: { sha: 'b' }, head: { sha: 'h2', ref: 'x' } };
+    }
+    if (endpoint === '/repos/example/demo/pulls/2/files') {
+      return [{ filename: 'a.txt', status: 'modified', additions: 1, deletions: 0 }];
+    }
+    if (endpoint === '/repos/example/demo/pulls/2/comments') return [];
+    const err = new Error('Not Found'); err.status = 404; throw err;
+  };
+}
+
+test('ein zweites fetch laesst keinen veralteten Patch in patches/ stehen', async () => {
+  // Der Haystack ist Dateistand PLUS Patch. Ein ueberlebender Patch aus Runde 1 haelt
+  // die entfernten Zeilen am Leben und damit jedes LEFT-Zitat auffindbar -- dieselbe
+  // Wirkung wie ein veralteter Dateistand, nur auf der anderen Seite des Diffs.
+  const dir = join(mkdtempSync(join(tmpdir(), 'prr-stalepatch-')), 'bundle');
+  await buildBundle({ repo: 'example/demo', number: 2, ghApi: bundle2Api(), bundleDir: dir });
+  assert.ok(existsSync(join(dir, 'patches/a.txt.patch')), 'Vorbedingung: Runde 1 legt den Patch an');
+
+  await buildBundle({ repo: 'example/demo', number: 2, ghApi: patchlessApi(), bundleDir: dir });
+
+  assert.equal(existsSync(join(dir, 'patches/a.txt.patch')), false);
+  assert.equal(loadBundle(dir).patchText.get('a.txt'), undefined);
+});
+
+// Runde 1 findet zu src/a.ts den Test src/a.spec.ts, Runde 2 nicht mehr (geloescht).
+function tsApi(withTest) {
+  return async (endpoint) => {
+    if (endpoint === '/repos/example/demo/pulls/3') {
+      return { number: 3, title: 't', body: '', user: { login: 'a' }, labels: [],
+        base: { sha: 'b' }, head: { sha: 'h', ref: 'x' } };
+    }
+    if (endpoint === '/repos/example/demo/pulls/3/files') {
+      return [{ filename: 'src/a.ts', status: 'modified', additions: 1, deletions: 0, patch: '@@ -1 +1,2 @@\n keep\n+add' }];
+    }
+    if (endpoint === '/repos/example/demo/pulls/3/comments') return [];
+    if (endpoint.startsWith('/repos/example/demo/contents/src/a.ts')) {
+      return { content: Buffer.from('keep\nadd\n').toString('base64'), encoding: 'base64' };
+    }
+    if (withTest && endpoint.startsWith('/repos/example/demo/contents/src/a.spec.ts')) {
+      return { content: Buffer.from('it("x", () => expect(1).toBe(1));\n').toString('base64'), encoding: 'base64' };
+    }
+    const err = new Error('Not Found'); err.status = 404; throw err;
+  };
+}
+
+test('ein zweites fetch laesst keine veraltete Testdatei in tests/ stehen', async () => {
+  // tests/ steht nicht im Haystack, kann also kein falsches "noch vorhanden" erzeugen --
+  // aber die Analysten lesen das Verzeichnis. Eine Testdatei, die im PR inzwischen
+  // geloescht wurde, laesst einen Analysten ueber eine Absicherung urteilen, die es nicht
+  // mehr gibt. Zugleich meldete meta.json die Datei korrekt als testlos: das Bundle
+  // widerspraeche sich selbst.
+  const dir = join(mkdtempSync(join(tmpdir(), 'prr-staletest-')), 'bundle');
+  await buildBundle({ repo: 'example/demo', number: 3, ghApi: tsApi(true), bundleDir: dir });
+  assert.ok(existsSync(join(dir, 'tests/src/a.spec.ts')), 'Vorbedingung: Runde 1 legt den Test an');
+
+  const summary = await buildBundle({ repo: 'example/demo', number: 3, ghApi: tsApi(false), bundleDir: dir });
+
+  assert.deepEqual(summary.missingTests, ['src/a.ts']);
+  assert.equal(existsSync(join(dir, 'tests/src/a.spec.ts')), false);
+});
+
+test('ein abgebrochenes fetch laesst das alte Bundle unangetastet', async () => {
+  // Die Gegenprobe zu den beiden Tests darueber: wer veraltete Staende beseitigt, darf
+  // sie nicht schon beseitigt haben, wenn das Holen danach scheitert. Ein halb
+  // ausgeraeumtes Bundle waere schlimmer als ein veraltetes -- es sieht vollstaendig
+  // aus und ist es nicht.
+  const dir = join(mkdtempSync(join(tmpdir(), 'prr-abort-')), 'bundle');
+  await buildBundle({ repo: 'example/demo', number: 2, ghApi: bundle2Api(), bundleDir: dir });
+
+  const brokenApi = async (endpoint) => {
+    if (endpoint === '/repos/example/demo/pulls/2') {
+      return { number: 2, title: 't', body: '', user: { login: 'a' }, labels: [],
+        base: { sha: 'b' }, head: { sha: 'h2', ref: 'x' } };
+    }
+    if (endpoint === '/repos/example/demo/pulls/2/files') {
+      return [{ filename: 'a.txt', status: 'modified', additions: 1, deletions: 0, patch: '@@ -1 +1,2 @@\n keep\n+neu' }];
+    }
+    const err = new Error('Server Error'); err.status = 500; throw err;
+  };
+
+  await assert.rejects(() => buildBundle({ repo: 'example/demo', number: 2, ghApi: brokenApi, bundleDir: dir }));
+
+  const b = loadBundle(dir);
+  assert.equal(b.fileText.get('a.txt'), 'keep\nadd\n');
+  assert.ok(b.patchText.get('a.txt').includes('+add'));
+});
