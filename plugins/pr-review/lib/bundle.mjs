@@ -63,7 +63,17 @@ function writeUnder(dir, relPath, content) {
 // nicht bloss Muell: beide bilden den Haystack, gegen den Bedingung (2) prueft. Ein
 // veralteter Stand haelt jedes Zitat auffindbar, und ein wirklich behobener Befund
 // loest nie auf. tests/ liegt nicht im Haystack, wird aber von den Analysten gelesen.
-const STAGED_DIRS = ['files', 'patches', 'tests', 'siblings'];
+const STAGED_DIRS = ['files', 'patches', 'tests', 'siblings', 'manifests'];
+
+// Die Abhaengigkeitsmanifeste im Wurzelverzeichnis. Ein Stack-Analyst empfiehlt
+// Framework-Mittel -- und ob das jeweilige Mittel ueberhaupt auf dem Classpath liegt,
+// steht genau hier. Ohne sie raet er: "@Cacheable statt eigener Map" ist falsch, wenn
+// kein Cache-Starter eingebunden ist, und ein Analyst, der raet, wird nicht gelesen.
+//
+// Bewusst nur die Wurzel: in einem mehrmodularen Projekt kann das Modul-Manifest fehlen.
+// Das ist eine bekannte Luecke, kein Versehen -- der Analystenkontrakt sagt ausdruecklich,
+// dass daraus ein Vorbehalt im Befund werden muss statt einer Annahme.
+const MANIFEST_CANDIDATES = ['build.gradle.kts', 'build.gradle', 'pom.xml', 'package.json'];
 
 // Geschwister: Dateien im selben Verzeichnis wie eine geaenderte Datei. Sie existieren
 // fuer genau einen Analysten (consistency) -- ein Agent, der Story 7 baut, kennt Stories
@@ -253,6 +263,14 @@ async function fetchInto({ repo, number, ghApi, dir, staging }) {
 
   const siblings = await collectSiblings({ ghApi, repo, headSha, staging, files, changedPaths });
 
+  const manifests = [];
+  for (const name of MANIFEST_CANDIDATES) {
+    const text = await fetchText(ghApi, repo, name, headSha);
+    if (text === null) continue;
+    writeUnder(staging, join('manifests', name), text);
+    manifests.push(name);
+  }
+
   const comments = await ghApi(`/repos/${repo}/pulls/${number}/comments`, { paginate: true });
   writeUnder(dir, 'previous.json', JSON.stringify(comments ?? [], null, 2));
 
@@ -282,6 +300,8 @@ async function fetchInto({ repo, number, ghApi, dir, staging }) {
     // Evidenzpflicht fuer jeden Analysten aufweichen, nicht nur fuer consistency.
     siblings: siblings.collected,
     siblings_truncated: siblings.truncated,
+    // Ebenfalls neben files, aus demselben Grund: unveraendert, also nicht zitierbar.
+    manifests,
     files,
   };
   writeUnder(dir, 'meta.json', JSON.stringify(meta, null, 2));
@@ -300,6 +320,7 @@ async function fetchInto({ repo, number, ghApi, dir, staging }) {
     dir, files: files.length, changedLines, specLink: meta.spec_link, missingTests, patchMissing,
     siblings: siblings.collected.length,
     siblingsTruncated: siblings.truncated,
+    manifests,
   };
 }
 

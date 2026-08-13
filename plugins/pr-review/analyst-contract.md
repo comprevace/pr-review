@@ -14,6 +14,7 @@ Ein eingefrorenes Bundle-Verzeichnis. Dessen Pfad steht in deinem Auftrag.
 | `files/<pfad>` | die betroffene Datei vollständig, Stand des PR-Branches | **ja** |
 | `tests/<pfad>` | zugehörige Testdateien, falls es welche gibt | nein |
 | `siblings/<pfad>` | **unveränderte** Nachbardateien im selben Verzeichnis, gleiche Endung | nein |
+| `manifests/<name>` | Abhängigkeitsmanifeste der Repo-Wurzel (`build.gradle.kts`, `pom.xml`, `package.json`) | nein |
 | `spec.md` | die im PR verlinkte Spec-Datei. Kann leer sein | nein |
 | `conventions.md` | die `CLAUDE.md` des Repos. Kann leer sein | nein |
 | `meta.json` | PR-Metadaten, Dateiliste, `commentable`-Bereiche, `missing_tests` | nein |
@@ -123,10 +124,17 @@ Zwei Bedingungen, und beide werden maschinell geprüft:
    zu **entfernten** Zeilen: was der PR gelöscht hat, steht nur dort, mit `-` davor.
    Zitiere den Zeileninhalt ohne das `-`, und setze `side: LEFT`.
 
-**`tests/`, `siblings/`, `spec.md` und `conventions.md` sind nicht zitierbar.** Sie sind
-zum Verstehen da. Ein Zitat aus einer unveränderten Testdatei, aus einer Nachbardatei,
-aus der Spec oder aus den Konventionen ist im Haystack der geänderten Dateien nicht
-auffindbar und wird verworfen — auch wenn du wörtlich richtig zitiert hast.
+**`tests/`, `siblings/`, `manifests/`, `spec.md` und `conventions.md` sind nicht
+zitierbar.** Sie sind zum Verstehen da. Ein Zitat aus einer unveränderten Testdatei, aus
+einer Nachbardatei, aus einem Manifest, aus der Spec oder aus den Konventionen ist im
+Haystack der geänderten Dateien nicht auffindbar und wird verworfen — auch wenn du
+wörtlich richtig zitiert hast.
+
+`manifests/` sagt dir, was auf dem Classpath liegt, bevor du ein Framework-Mittel
+empfiehlst. Geholt wird **nur die Repo-Wurzel**: in einem mehrmodularen Projekt kann das
+Manifest des betroffenen Moduls fehlen. Welche gefunden wurden, steht in `meta.json` unter
+`manifests` — ist die Liste leer oder passt sie nicht zum geänderten Code, dann **weißt du
+den Classpath nicht** und musst das im Befund sagen, statt es anzunehmen.
 
 Das betrifft besonders den Fall „hier fehlt jetzt eine Prüfung":
 

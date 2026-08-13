@@ -350,6 +350,73 @@ test('die Geschwister-Kappung wird gemeldet, nicht stillschweigend angewandt', a
   assert.equal(summary.siblings, meta.siblings.length);
 });
 
+// PR 5: eine Java-Datei, dazu ein Gradle-Manifest in der Wurzel. pom.xml und
+// package.json existieren nicht -- der 404 darf nicht stoeren.
+function manifestApi() {
+  return async (endpoint) => {
+    if (endpoint === '/repos/example/demo/pulls/5') {
+      return { number: 5, title: 't', body: '', user: { login: 'a' }, labels: [],
+        base: { sha: 'b' }, head: { sha: 'h', ref: 'x' } };
+    }
+    if (endpoint === '/repos/example/demo/pulls/5/files') {
+      return [{ filename: 'src/main/java/app/Foo.java', status: 'modified', additions: 1, deletions: 0, patch: '@@ -1 +1,2 @@\n keep\n+neu' }];
+    }
+    if (endpoint === '/repos/example/demo/pulls/5/comments') return [];
+    if (endpoint.startsWith('/repos/example/demo/contents/build.gradle.kts')) {
+      return { content: Buffer.from('dependencies { implementation("org.springframework.boot:spring-boot-starter-web") }\n').toString('base64'), encoding: 'base64' };
+    }
+    if (endpoint.startsWith('/repos/example/demo/contents/src/main/java/app/Foo.java')) {
+      return { content: Buffer.from('keep\nneu\n').toString('base64'), encoding: 'base64' };
+    }
+    const err = new Error('Not Found'); err.status = 404; throw err;
+  };
+}
+
+test('buildBundle holt vorhandene Manifestdateien und vermerkt sie', async () => {
+  // Ohne Manifest weiss ein Stack-Analyst nicht, was auf dem Classpath liegt, und
+  // empfiehlt Framework-Mittel, die es im Projekt gar nicht gibt.
+  const dir = join(mkdtempSync(join(tmpdir(), 'prr-man-')), 'bundle');
+  await buildBundle({ repo: 'example/demo', number: 5, ghApi: manifestApi(), bundleDir: dir });
+
+  assert.ok(existsSync(join(dir, 'manifests/build.gradle.kts')));
+  assert.equal(existsSync(join(dir, 'manifests/pom.xml')), false, 'nicht vorhandene Manifeste duerfen nicht erfunden werden');
+  const meta = JSON.parse(readFileSync(join(dir, 'meta.json'), 'utf8'));
+  assert.deepEqual(meta.manifests, ['build.gradle.kts']);
+});
+
+test('Manifeste landen NICHT im Haystack', async () => {
+  // Dieselbe Zusicherung wie bei siblings/: die Evidenzpflicht darf sich nicht dadurch
+  // lockern, dass wir Kontext dazunehmen. Ein Manifest ist unveraendert, also nicht
+  // zitierbar -- sonst waere jede Abhaengigkeitszeile plötzlich gueltige Evidenz.
+  const dir = join(mkdtempSync(join(tmpdir(), 'prr-manhay-')), 'bundle');
+  await buildBundle({ repo: 'example/demo', number: 5, ghApi: manifestApi(), bundleDir: dir });
+
+  const b = loadBundle(dir);
+  assert.equal(b.fileText.get('build.gradle.kts'), undefined);
+  assert.deepEqual(b.meta.files.map((f) => f.path), ['src/main/java/app/Foo.java']);
+});
+
+test('ein zweites fetch laesst kein veraltetes Manifest stehen', async () => {
+  const dir = join(mkdtempSync(join(tmpdir(), 'prr-manstale-')), 'bundle');
+  await buildBundle({ repo: 'example/demo', number: 5, ghApi: manifestApi(), bundleDir: dir });
+  assert.ok(existsSync(join(dir, 'manifests/build.gradle.kts')));
+
+  // Runde 2: das Projekt ist auf Maven umgestellt.
+  const api2 = async (endpoint) => {
+    if (endpoint.startsWith('/repos/example/demo/contents/build.gradle.kts')) {
+      const err = new Error('Not Found'); err.status = 404; throw err;
+    }
+    if (endpoint.startsWith('/repos/example/demo/contents/pom.xml')) {
+      return { content: Buffer.from('<project/>\n').toString('base64'), encoding: 'base64' };
+    }
+    return manifestApi()(endpoint);
+  };
+  await buildBundle({ repo: 'example/demo', number: 5, ghApi: api2, bundleDir: dir });
+
+  assert.equal(existsSync(join(dir, 'manifests/build.gradle.kts')), false);
+  assert.ok(existsSync(join(dir, 'manifests/pom.xml')));
+});
+
 test('ein abgebrochenes fetch laesst das alte Bundle unangetastet', async () => {
   // Die Gegenprobe zu den beiden Tests darueber: wer veraltete Staende beseitigt, darf
   // sie nicht schon beseitigt haben, wenn das Holen danach scheitert. Ein halb
