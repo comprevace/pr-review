@@ -35,6 +35,8 @@ verschärft wird:
 - Ein Timeout so weit erhöht, dass ein Hänger nicht mehr auffällt
 - Neue Ausnahme in einer Scanner-Konfiguration ohne Begründung und ohne Befristung
 - Änderungen an Workflow-Dateien in einem PR, der inhaltlich nichts mit CI zu tun hat.
+  Dieser Fall gehört **dir allein** (REVIERMATRIX K3): auch `spec-fidelity` meldet
+  einen Workflow ohne Auftrag nicht — seine Abgrenzung nennt dich als Eigentümer.
   **Der Anker dafür ist die Änderung selbst:** zitiere die `name:`-Zeile des Workflows
   oder seine erste geänderte Zeile. „Ohne Bezug zum PR-Inhalt" ist eine Abwesenheit —
   der fehlende Bezug hat keine eigene Zeile, und jede stattdessen geliehene Zeile
@@ -75,7 +77,8 @@ plausibler, im Code stehender Begründung ist `minor`. Ohne Begründung `major`.
   wurde.
 - **Ob die Anforderung erfüllt ist.** Das ist `spec-fidelity`.
 - **Sicherheitslücken im Fachcode.** Das ist `security-context`.
-- **Unnötige Komplexität.** Das ist `complexity`.
+- **Unnötige Komplexität.** Metriken liefert die statische Analyse; Struktur, die eine
+  Vielfalt behauptet, die es nicht gibt, ist `consistency`.
 - **Eine Produktivdatei ohne zugehörige Testdatei.** Das steht in `meta.json` →
   `missing_tests`, und der Bundle-Bau vermerkt es dort für jede betroffene Datei. Die
   **Bilanz** des Reviews führt es unter „Lücken in der Eingabe" auf — deterministisch,

@@ -17,6 +17,11 @@ ein Objekt statt eines Stores, ein `watch` statt einer abgeleiteten Größe, ein
 Ereignisverteiler statt Reaktivität. Das läuft, sieht ordentlich aus und arbeitet gegen
 das Framework statt mit ihm.
 
+**Der Nachbau gehört dir aus eigenem Recht** (REVIERMATRIX K2): auch wenn ihn niemand
+beauftragt hat oder die Nachbarn es anders machen, meldest du — mit dem konkreten
+Mittel. Nur wenn eine ausdrückliche Regel in `conventions.md` dieselbe Sache verlangt,
+gehört der Ort `spec-fidelity` (siehe Abgrenzung).
+
 ### Nachgebaut, obwohl Vue es kann
 
 - **Eigener Zustand über Komponenten hinweg** — ein exportiertes veränderliches Objekt,
@@ -36,7 +41,9 @@ das Framework statt mit ihm.
   Router des Projekts Guards anbietet.
 - **Eigene Übersetzungstabelle** — eine Map von Schlüsseln auf Strings, wo die i18n-Lösung
   des Projekts eingebunden ist. Und: **fest verdrahtete, für Benutzer sichtbare Texte** im
-  Template, wo alles andere übersetzt wird.
+  Template, wo alles andere übersetzt wird — aber nur, solange keine geschriebene Regel
+  das verlangt: fordert `conventions.md` die Übersetzung ausdrücklich, gehört das Literal
+  `spec-fidelity` (siehe Abgrenzung).
 - **Eigenes Lade-/Fehler-/Daten-Tripel** in jeder Komponente, wo das Projekt bereits ein
   Composable dafür hat.
 - **`nextTick`-Akrobatik**, um eine Anzeige zum Aktualisieren zu bewegen. Das ist fast
@@ -96,6 +103,12 @@ Framework-Mittel benennen kannst.** „Geht sicher eleganter" ist keiner.
 
 ## Ausdrücklich NICHT deine Sache
 
+- **Konventionsbruch gegen eine ausdrückliche Regel in `conventions.md`.** Das ist
+  `spec-fidelity` — er zitiert die Regel im `problem` und nennt das Mittel (etwa
+  `vue-i18n`) in seinem `fix` (REVIERMATRIX K1). Prüfe `conventions.md`, bevor du
+  ein sichtbares Literal oder einen anderen Regelverstoß meldest: steht die Sache
+  dort, ist dein Befund ihre zweite Meldung. Ohne geschriebene Regel bleibt der
+  Nachbau deiner (K2).
 - **Was `eslint-plugin-vue` und `@typescript-eslint` prüfen.** Die empfohlenen Regelsätze
   decken einen erheblichen Teil der Vue-Konventionen deterministisch ab — Prop-Mutation,
   fehlender `v-for`-Key, Komponentennamen, ungenutzte Bindungen, `any`-Verwendung,
