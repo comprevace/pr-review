@@ -16,6 +16,40 @@ export function bundlePathFor(repo, number) {
   return join(homedir(), '.cache', 'pr-review', `${owner}__${name}__${number}`);
 }
 
+// Generierte Dateien zaehlen nicht als reviewbare Zeilen.
+//
+// Aufgefallen an einem echten PR: ein Vue-Grundgeruest meldete 5838 geaenderte
+// Zeilen, davon 5312 in package-lock.json. Der Skill brach wegen der
+// 3000-Zeilen-Schwelle ab, obwohl 526 Zeilen zu reviewen waren. Die Schwelle war
+// nicht zu niedrig -- die Messung war falsch.
+//
+// Die Liste ist bewusst kurz. Eine Ausnahme, die zu viel ausnimmt, versteckt
+// echten Code, und dann ist ein zu kleiner Zahlenwert schlimmer als ein zu
+// grosser: er behauptet Reviewbarkeit, die es nicht gibt. Wer hier ergaenzt,
+// muss zeigen koennen, dass die Datei maschinell erzeugt wird und niemand sie
+// von Hand liest.
+const GENERATED_RE = new RegExp(
+  [
+    '(^|/)package-lock\\.json$',
+    '(^|/)npm-shrinkwrap\\.json$',
+    '(^|/)yarn\\.lock$',
+    '(^|/)pnpm-lock\\.yaml$',
+    '(^|/)gradle\\.lockfile$',
+    '(^|/)buildscript-gradle\\.lockfile$',
+    '(^|/)Cargo\\.lock$',
+    '(^|/)poetry\\.lock$',
+    '(^|/)uv\\.lock$',
+    '(^|/)composer\\.lock$',
+    '(^|/)Gemfile\\.lock$',
+    '\\.min\\.(js|css)$',
+    '(^|/)dist/',
+  ].join('|'),
+);
+
+export function isGenerated(path) {
+  return GENERATED_RE.test(path);
+}
+
 const TEST_SUFFIX_RE = /(Test|Tests|IT)\.java$|\.(spec|test)\.(ts|tsx|js|mjs)$/;
 
 export function testCandidates(path) {
@@ -210,6 +244,11 @@ async function fetchInto({ repo, number, ghApi, dir, staging }) {
   const missingTests = [];
   const patchParts = [];
   let changedLines = 0;
+  // Getrennt gefuehrt, NICHT changedLines umdefiniert: dasselbe Feld mit neuer
+  // Bedeutung waere die Verwechslung, die man niemandem erklaeren kann. Die
+  // Schwelle im Skill haengt an reviewableLines, changedLines bleibt die
+  // Gesamtzahl fuer die Bilanz.
+  let reviewableLines = 0;
   // Einmal aufbauen, nicht je Datei. "removed" wird ausgeschlossen: eine im PR
   // geloeschte Testdatei existiert am head_sha nicht mehr und darf nicht als
   // "Test vorhanden" zaehlen -- sonst verschwindet die Produktivdatei still aus
@@ -224,7 +263,14 @@ async function fetchInto({ repo, number, ghApi, dir, staging }) {
       deletions: f.deletions ?? 0,
       commentable: commentableRanges(f.patch ?? null),
     };
+    // Generierte Dateien bleiben im Bundle und bleiben zitierbar -- geaendert
+    // wird nur die Zaehlung. Sie aus dem Bundle zu nehmen waere eine zweite,
+    // groessere Aenderung: sie fasst den Haystack der Evidenzpruefung an, und
+    // ein Befund, der eine Lockfile-Zeile zitiert, wuerde dann verworfen. Erst
+    // messen, dann entscheiden.
+    if (isGenerated(f.filename)) entry.generated = true;
     changedLines += entry.additions + entry.deletions;
+    if (!entry.generated) reviewableLines += entry.additions + entry.deletions;
     if (!f.patch) {
       entry.patch_missing = true;
       patchMissing.push(f.filename);
@@ -293,6 +339,8 @@ async function fetchInto({ repo, number, ghApi, dir, staging }) {
     spec_link: specLink,
     spec_missing: specText === null,
     conventions_missing: conventions === null,
+    changed_lines: changedLines,
+    reviewable_lines: reviewableLines,
     missing_tests: missingTests,
     // Bewusst NEBEN files, nicht darin. files ist die Liste der geaenderten Dateien und
     // speist knownFiles und die Haystacks der Evidenzpruefung. Ein Geschwister dort
@@ -317,7 +365,7 @@ async function fetchInto({ repo, number, ghApi, dir, staging }) {
   mkdirSync(join(dir, 'findings'), { recursive: true });
 
   return {
-    dir, files: files.length, changedLines, specLink: meta.spec_link, missingTests, patchMissing,
+    dir, files: files.length, changedLines, reviewableLines, specLink: meta.spec_link, missingTests, patchMissing,
     siblings: siblings.collected.length,
     siblingsTruncated: siblings.truncated,
     manifests,

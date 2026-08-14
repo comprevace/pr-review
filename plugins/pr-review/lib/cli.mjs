@@ -64,7 +64,7 @@ async function cmdFetch(positional, flags) {
     }
   }
   const summary = await buildBundle({ repo, number, ghApi });
-  logRun(summary.dir, `fetch ${repo}#${number} files=${summary.files} changedLines=${summary.changedLines}`);
+  logRun(summary.dir, `fetch ${repo}#${number} files=${summary.files} changedLines=${summary.changedLines} reviewableLines=${summary.reviewableLines}`);
   process.stdout.write(`${JSON.stringify(summary, null, 2)}\n`);
 }
 
