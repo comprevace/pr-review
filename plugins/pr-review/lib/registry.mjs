@@ -73,6 +73,18 @@ function normalize(meta, file, source) {
   };
 }
 
+// Eine Datei ohne `---`-Kopf beansprucht nicht, Analyst zu sein. Im
+// Projekt-Analystenverzeichnis liegt genau dafuer eine README mit der
+// Anleitung, wie man dort Analysten anlegt -- und die wurde bisher als Analyst
+// gelesen. Folge: `post` brach mit "Frontmatter fehlt" ab, nachdem alle
+// Subagenten schon gelaufen waren, und die Meldung nannte die Datei nicht.
+//
+// Die Grenze ist bewusst eng: uebersprungen wird nur, was gar keinen Kopf hat.
+// Eine Datei MIT Kopf beansprucht Analyst zu sein, und dort bleibt jeder Fehler
+// laut -- auch ein unabgeschlossener Kopf. Ein Tippfehler im Frontmatter soll
+// weiterhin scheitern und nicht still zu einem Default werden.
+const CLAIMS_FRONTMATTER = /^---\r?\n/;
+
 // roots in Reihenfolge steigender Prioritaet: [pluginRoot, repoRoot].
 export function loadAnalysts(roots) {
   const byName = new Map();
@@ -81,9 +93,17 @@ export function loadAnalysts(roots) {
     const source = index === 0 ? 'plugin' : 'repo';
     for (const file of readdirSync(root).filter((f) => f.endsWith('.md')).sort()) {
       const text = readFileSync(join(root, file), 'utf8');
-      const { meta, body } = parseFrontmatter(text);
-      const analyst = normalize(meta, file, source);
-      byName.set(analyst.name, { ...analyst, body, file: join(root, file) });
+      if (!CLAIMS_FRONTMATTER.test(text)) continue;
+      let parsed;
+      try {
+        parsed = parseFrontmatter(text);
+      } catch (error) {
+        // Ohne Dateinamen kostet die Meldung mehr Zeit als sie wert ist: die
+        // Ursache liegt in einer bestimmten Datei, gemeldet wurde nur die Regel.
+        throw new Error(`${file}: ${error.message}`);
+      }
+      const analyst = normalize(parsed.meta, file, source);
+      byName.set(analyst.name, { ...analyst, body: parsed.body, file: join(root, file) });
     }
   });
   return [...byName.values()];

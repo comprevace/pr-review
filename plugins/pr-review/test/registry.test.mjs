@@ -66,6 +66,34 @@ test('loadAnalysts wirft, wenn name nicht zum Dateinamen passt', () => {
   assert.throws(() => loadAnalysts([root]), /x\.md/);
 });
 
+test('loadAnalysts ueberspringt Dateien ohne Frontmatter-Kopf', () => {
+  // Die README im Projekt-Analystenverzeichnis ist Anleitung, kein Analyst.
+  // Sie als Analyst zu lesen brach `post` ab -- und zwar erst, nachdem alle
+  // Subagenten schon gelaufen waren.
+  const root = makeRoot({
+    'README.md': '# Projektspezifische Analysten\n\nAufbau steht im Kontrakt.\n',
+    'a.md': ALWAYS('a', 'A'),
+  });
+  assert.deepEqual(loadAnalysts([root]).map((x) => x.name), ['a']);
+});
+
+test('eine Datei MIT Frontmatter-Kopf scheitert weiterhin laut', () => {
+  // Die Grenze des Ueberspringens: ein unabgeschlossener Kopf ist ein Fehler,
+  // kein Dokument. Sonst liesse ein Tippfehler den Analysten still ausfallen --
+  // genau das, was die Frontmatter-Pruefung verhindern soll.
+  const root = makeRoot({ 'broken.md': '---\nname: broken\ntitle: B\n' });
+  assert.throws(() => loadAnalysts([root]), /broken\.md/);
+  assert.throws(() => loadAnalysts([root]), /Frontmatter/);
+});
+
+test('ein unbekannter Frontmatter-Schluessel nennt die Datei', () => {
+  const root = makeRoot({
+    'typo.md': '---\nname: typo\ntitle: T\nwhen: always\nsevrity_max: major\n---\nB\n',
+  });
+  assert.throws(() => loadAnalysts([root]), /typo\.md/);
+  assert.throws(() => loadAnalysts([root]), /sevrity_max/);
+});
+
 test('Brace-Glob mit Komma im Zitat bleibt unversehrt', () => {
   const doc = '---\nname: vue\ntitle: Vue\nwhen: paths\npaths: ["**/*.{vue,ts}", "src/**"]\nseverity_max: major\n---\nB\n';
   const { meta } = parseFrontmatter(doc);
