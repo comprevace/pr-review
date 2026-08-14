@@ -21,6 +21,10 @@
 // der sich Clustern und Severity-Erhoehung ueberhaupt messen lassen. `darfNicht` ist die
 // Gegenrichtung: dort muss der genannte Analyst schweigen.
 //
+// Wem ein Konfliktort gehoert, entscheidet seit 0.14.0 die REVIERMATRIX
+// (../../REVIERMATRIX.md, eine Quelle statt neun Fragmente). Die Landkarte spiegelt
+// deren Zeilen als muss/darfNicht; reviermatrix.test.mjs haelt beide Seiten zusammen.
+//
 // Was `evidence` zusichert -- und was nicht (entschieden am 13.08., nach zwei Messlaeufen):
 // Zugesichert und maschinell geprueft ist, dass das Zitat auffindbar und seine Zeile
 // kommentierbar ist -- der Fall KANN genau so gemeldet werden. NICHT zugesichert ist, dass
@@ -57,7 +61,11 @@ const ORDER_SERVICE = [
   '    if (cache.containsKey(id)) {',
   '      return cache.get(id);',
   '    }',
-  '    Order order = repository.findById(id);',
+  // Inline-Normalisierung statt des Ids.normalize der Nachbarn: der gepflanzte
+  // consistency-Fall. Bewusst OHNE Framework-Mittel und OHNE Regel in conventions.md --
+  // das Muster ist ausschliesslich in der Nachbarschaft belegt (K1-Kette, letzte Stufe
+  // vor dem Framework: nur-Nachbarschaft gehoert consistency).
+  '    Order order = repository.findById(id.trim().toLowerCase());',
   '    cache.put(id, order);',
   '    return order;',
   '  }',
@@ -202,8 +210,11 @@ function addedPatch(lines) {
 
 // ------------------------------------------------------------ unveraenderter Kontext
 
-// Nachbar von OrderService: zeigt das etablierte Muster (Result statt Wurf). Ohne ihn
-// koennte consistency den Musterbruch nicht belegen und muesste raten.
+// Nachbarn von OrderService. Sie tragen ZWEI Muster, und beide brauchen zwei
+// Sichtungen (consistencys eigene Regel: ein Muster ist erst ein Muster, wenn man es
+// zweimal sieht): das Result-Muster stuetzt die geschriebene Konvention, die
+// Ids.normalize-Aufrufe belegen das UNGESCHRIEBENE Muster fuer den gepflanzten
+// consistency-Fall -- es steht absichtlich NICHT in conventions.md.
 const INVOICE_SERVICE = [
   'package app;',
   '',
@@ -215,11 +226,56 @@ const INVOICE_SERVICE = [
   '    this.repository = repository;',
   '  }',
   '',
+  '  public Invoice load(String id) {',
+  '    return repository.findById(Ids.normalize(id));',
+  '  }',
+  '',
   '  public Result<Invoice> handle(Invoice invoice) {',
   '    if (invoice.isExpired()) {',
   '      return Result.failure("expired");',
   '    }',
   '    return Result.success(repository.save(invoice));',
+  '  }',
+  '}',
+].join('\n');
+
+const PAYMENT_SERVICE = [
+  'package app;',
+  '',
+  'public class PaymentService {',
+  '',
+  '  private final PaymentRepository repository;',
+  '',
+  '  public PaymentService(PaymentRepository repository) {',
+  '    this.repository = repository;',
+  '  }',
+  '',
+  '  public Payment load(String id) {',
+  '    return repository.findById(Ids.normalize(id));',
+  '  }',
+  '',
+  '  public Result<Payment> handle(Payment payment) {',
+  '    if (payment.isExpired()) {',
+  '      return Result.failure("expired");',
+  '    }',
+  '    return Result.success(repository.save(payment));',
+  '  }',
+  '}',
+].join('\n');
+
+// Die Definition der gemeinsamen Hilfsfunktion. Als Sibling sichtbar, damit consistency
+// nicht nur zwei Aufrufe sieht, sondern auch, dass es GENAU dieselbe Aufgabe ist.
+const IDS = [
+  'package app;',
+  '',
+  'final class Ids {',
+  '',
+  '  private Ids() {}',
+  '',
+  '  // Bezeichner kommen aus Fremdsystemen mit wechselnder Schreibung; genau eine',
+  '  // Stelle normalisiert sie.',
+  '  static String normalize(String raw) {',
+  '    return raw.trim().toLowerCase();',
   '  }',
   '}',
 ].join('\n');
@@ -280,10 +336,19 @@ const CONVENTIONS = [
 export const PLANTED = [
   {
     fall: 'Eigener Cache statt @Cacheable',
+    // REVIERMATRIX K2: ein Framework-Nachbau ohne geschriebene Regel gehoert dem
+    // Stack-Analysten allein. Gemessen in allen drei Laeufen vom 13.08.: consistency
+    // meldete denselben Nachbau aus der Nachbarschaft (der einzige Nachbar ist
+    // zustandslos -- EINE Sichtung, nach seiner eigenen Regel kein Muster), und
+    // spec-fidelity meldete ihn als ungefragten Zusatz mit einem fix, der dem des
+    // Eigentuemers widerspricht (entfernen vs. @Cacheable). Die Sonde haelt beide
+    // Abtretungen fest; der bewusste Verlust der "nie beauftragt"-Aussage an
+    // Nachbau-Orten steht als Ausnahme in UEBERGABE-pr-review.md.
     muss: 'java-spring',
     file: 'src/main/java/app/OrderService.java',
     evidence: 'private final Map<String, Order> cache = new HashMap<>();',
     line: 8,
+    darfNicht: ['consistency', 'spec-fidelity'],
     hinweis: 'spring-boot-starter-cache steht im Manifest — confidence: hoch ist erreichbar.',
   },
   {
@@ -295,12 +360,35 @@ export const PLANTED = [
     darfNicht: ['java-spring'],
   },
   {
-    fall: 'Wurf, wo die Nachbarschaft Result zurückgibt',
-    muss: 'consistency',
+    fall: 'Wurf gegen die geschriebene Result-Konvention',
+    // REVIERMATRIX K1: die Regel steht ausdruecklich in conventions.md, also gehoert
+    // der Ort spec-fidelity -- er zitiert die Regel im problem. Bis 0.13.0 stand hier
+    // muss: consistency, und in allen drei Messlaeufen vom 13.08. meldeten BEIDE mit
+    // derselben Aussage und demselben fix; die daraus verschmolzene Erhoehung auf
+    // blocker war in Lauf 2 und 3 die einzige bzw. eine von vier -- jede aus
+    // Regel-Doppelbesitz, keine aus echter Mehrfachbetroffenheit. java-spring steht
+    // mit in der Sonde, weil er die Datei sieht und seine Abgrenzung geschriebene
+    // Konventionen ebenfalls abtritt.
+    muss: 'spec-fidelity',
     file: 'src/main/java/app/OrderService.java',
     evidence: 'throw new IllegalStateException("expired");',
     line: 30,
-    hinweis: 'Beleg liegt in siblings/…/InvoiceService.java und in conventions.md — beide nicht zitierbar.',
+    darfNicht: ['consistency', 'java-spring'],
+    hinweis: 'Beleg liegt in conventions.md (Regel) und siblings/ (Muster) — beide nicht zitierbar.',
+  },
+  {
+    fall: 'Inline-Normalisierung neben dem Ids.normalize der Nachbarn',
+    // Der neue muss-Fall fuer consistency, nachdem K1 ihm den Result-Ort genommen hat:
+    // ein Muster, das NUR in der Nachbarschaft belegt ist (Ids.java plus zwei Aufrufer
+    // in siblings/), ohne Regel in conventions.md und ohne Framework-Mittel. Die
+    // K1-Kette endet damit bei consistency. java-spring steht in der Sonde, weil seine
+    // Abgrenzung die eigene Hilfsfunktion im REPO bereits consistency zuschreibt --
+    // String-Operationen sind kein Framework-Mittel.
+    muss: 'consistency',
+    file: 'src/main/java/app/OrderService.java',
+    evidence: 'Order order = repository.findById(id.trim().toLowerCase());',
+    line: 19,
+    darfNicht: ['java-spring'],
   },
   {
     fall: 'Endpunkt ohne Autorisierung, Vergleichsfall in derselben Datei',
@@ -308,8 +396,14 @@ export const PLANTED = [
     file: 'src/main/java/app/OrderController.java',
     evidence: 'public Order history(@PathVariable String id) {',
     line: 24,
-    hinweis: 'ÜBERLAPPUNG mit spec-fidelity (Kriterium 2). Der einzige Ort, an dem die '
-      + 'Severity-Eskalation ausgelöst werden kann.',
+    // Der alte Hinweis ("der einzige Ort, an dem die Eskalation ausgeloest werden
+    // kann") stimmt seit der Konkordanz-Regel nicht mehr: Erhoehung verlangt zwei
+    // Analysten UNABHAENGIG auf der Basisstufe, und security-context (Deckel blocker)
+    // kann mit spec-fidelity oder test-substance (Deckel major) nie uebereinstimmen.
+    hinweis: 'ERWÜNSCHTE ÜBERLAPPUNG (REVIERMATRIX U1) mit spec-fidelity (Kriterium 2) '
+      + 'und test-substance (Erreichbarkeitstest) — zugesichert auf der Fund-Ebene, '
+      + 'nicht als Cluster. Eine Erhöhung kann hier seit der Konkordanz-Regel nicht '
+      + 'mehr entstehen (Deckel blocker vs. major).',
   },
   {
     fall: 'Akzeptanzkriterium 2 nicht umgesetzt',
@@ -349,6 +443,20 @@ export const PLANTED = [
     file: 'src/ui/OrderList.vue',
     evidence: 'watch(() => props.orders, (list) => {',
     line: 7,
+  },
+  {
+    fall: 'Sichtbares Literal gegen die geschriebene i18n-Konvention',
+    // REVIERMATRIX K1, zweiter Konventionsort -- bis 0.13.0 gar nicht gepflanzt und
+    // trotzdem in allen drei Laeufen von DREI Analysten gemeldet (consistency,
+    // spec-fidelity, vue-ts), alle mit derselben Regel aus conventions.md und
+    // demselben fix. Ob die Erhoehung feuerte, hing nur daran, ob zwei der drei
+    // zufaellig dieselbe Severity wuerfelten (Lauf 2: ja, blocker; Lauf 3: nein).
+    // Der Eigentuemer nennt das Framework-Mittel im fix; vue-i18n steht im Manifest.
+    muss: 'spec-fidelity',
+    file: 'src/ui/OrderList.vue',
+    evidence: '{{ order.id }} — Gesamtsumme: {{ total }}',
+    line: 15,
+    darfNicht: ['consistency', 'vue-ts'],
   },
   {
     fall: 'key am Index bei umsortierbarer Liste',
@@ -392,10 +500,18 @@ export const PLANTED = [
     // ist eine getarnte Abwesenheit, und am 13.08. lieh sich der Analyst dafuer
     // permissions: write-all -- die Zeile, die workflow-ci fachlich prueft. Der Prompt
     // schreibt seither die name:-Zeile vor; dieser Eintrag misst, ob das ankommt.
+    //
+    // REVIERMATRIX K3: gate-integrity ist ALLEINIGER Eigentuemer von "Aenderung ohne
+    // Bezug" in CI-Dateien. spec-fidelity meldete denselben Workflow in Lauf 1 und 3
+    // als ungefragten Zusatz ("ohne Bezug zu einem Kriterium") -- in Lauf 1 sogar auf
+    // derselben name:-Zeile, die dieser Eintrag gate-integrity vorschreibt. Seine
+    // Abtretung laeuft hart ueber den Dateipfad (.github/workflows/ usw.); bewusste
+    // Deckel-Folge, entschieden in der Matrix: der Ort wird blocker-faehig.
     muss: 'gate-integrity',
     file: '.github/workflows/release.yml',
     evidence: 'name: Release',
     line: 1,
+    darfNicht: ['spec-fidelity'],
   },
   {
     fall: 'Rechte weiter als nötig (write-all) — die Zeile gehört workflow-ci allein',
@@ -495,7 +611,9 @@ export function makeBundleB(dir) {
     commentable: commentableRanges(TEST_PATCH),
   });
 
+  write(dir, 'siblings/src/main/java/app/Ids.java', `${IDS}\n`);
   write(dir, 'siblings/src/main/java/app/InvoiceService.java', `${INVOICE_SERVICE}\n`);
+  write(dir, 'siblings/src/main/java/app/PaymentService.java', `${PAYMENT_SERVICE}\n`);
   write(dir, 'tests/src/test/java/app/OrderControllerTest.java', `${CONTROLLER_TEST}\n`);
   write(dir, 'manifests/build.gradle.kts', `${GRADLE}\n`);
   write(dir, 'manifests/package.json', `${PACKAGE_JSON}\n`);
@@ -518,7 +636,11 @@ export function makeBundleB(dir) {
     spec_missing: false,
     conventions_missing: false,
     missing_tests: ['src/ui/OrderList.vue'],
-    siblings: ['src/main/java/app/InvoiceService.java'],
+    siblings: [
+      'src/main/java/app/Ids.java',
+      'src/main/java/app/InvoiceService.java',
+      'src/main/java/app/PaymentService.java',
+    ],
     siblings_truncated: [],
     manifests: ['build.gradle.kts', 'package.json'],
     files: metaFiles,

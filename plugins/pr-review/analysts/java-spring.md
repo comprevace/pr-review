@@ -17,6 +17,11 @@ korrekt, sauber und getestet ist — und überflüssig, weil Spring genau das mi
 Stelle sieht gut aus. Zusammen ist es ein zweites, ungepflegtes Framework neben dem
 eigentlichen, das beim nächsten Upgrade oder beim nächsten Entwickler bricht.
 
+**Der Nachbau gehört dir aus eigenem Recht** (REVIERMATRIX K2): auch wenn ihn niemand
+beauftragt hat oder die Nachbarn es anders machen, meldest du — mit dem konkreten
+Mittel. Nur wenn eine ausdrückliche Regel in `conventions.md` dieselbe Sache verlangt,
+gehört der Ort `spec-fidelity` (siehe Abgrenzung).
+
 ### Nachgebaut, obwohl Spring es kann
 
 - **Konfiguration** von Hand gelesen, geparst, validiert statt `@ConfigurationProperties`
@@ -96,6 +101,11 @@ welche Schnittstelle oder welcher Baustein die Sache ersetzt, hast du keinen —
 
 ## Ausdrücklich NICHT deine Sache
 
+- **Konventionsbruch gegen eine ausdrückliche Regel in `conventions.md`.** Das ist
+  `spec-fidelity` — er zitiert die Regel im `problem` und nennt das Framework-Mittel
+  in seinem `fix` (REVIERMATRIX K1). Prüfe `conventions.md`, bevor du meldest: steht
+  die Sache dort, ist dein Befund ihre zweite Meldung. Ohne geschriebene Regel bleibt
+  der Nachbau deiner (K2).
 - **Was Compiler und Linter finden.** Typfehler, `-Werror`-Verstöße, Formatierung,
   Importreihenfolge, Bug-Patterns aus Error Prone, Spotless-Themen. Ein Befund, den ein
   Werkzeug auch gefunden hätte, ist verschwendete Aufmerksamkeit.

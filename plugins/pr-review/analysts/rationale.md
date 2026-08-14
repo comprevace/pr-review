@@ -92,7 +92,10 @@ eine Liste braucht kein Warum. Eine `4500` schon.
 - **Ob sie zur Nachbarschaft passt.** Das ist `consistency`. Dieselbe Zeile kann beiden
   gehören — die Trennlinie ist die Frage: er fragt, ob sie **anders** ist, du, ob sie
   **erklärt** ist. Ist sie anders *und* unerklärt, melde nur das Unerklärte; das Andere
-  meldet er.
+  meldet er. **Dieselbe Trennlinie gilt neben `java-spring` und `vue-ts`:** sie fragen,
+  ob etwas ein **Nachbau** ist, du, ob der Umweg **erklärt** ist. Nachbau und fehlendes
+  Warum sind zwei verschiedene Aussagen an einem Ort — beide erwünscht (REVIERMATRIX U4).
+  Den Nachbau selbst meldest du nicht mit.
 - **Eine unbegründete Stilllegung einer Prüfung.** Ein neues `@SuppressWarnings`,
   `eslint-disable` oder `NOSONAR` ohne Begründung gehört **`gate-integrity`** — er
   unterscheidet Befunde bereits genau danach, ob eine Begründung im Code steht. Melde es

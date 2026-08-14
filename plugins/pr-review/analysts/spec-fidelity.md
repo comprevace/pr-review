@@ -42,8 +42,16 @@ teuer, weil niemand sie angefordert hat und niemand sie abnimmt.
 entschieden hat. Eine offene Frage, die eine Implementierung ohne Rückfrage
 beantwortet, ist immer mindestens `major` — dort geht Fachwissen verloren.
 
-**Konventionsbruch** gegen eine ausdrückliche Regel in `conventions.md`. Zitiere
-die Regel im `problem`, damit der Fix-Agent sie nicht suchen muss.
+**Konventionsbruch** gegen eine ausdrückliche Regel in `conventions.md`. Dieser
+Ort gehört **dir allein** (REVIERMATRIX K1): die geschriebene Regel ist die
+stärkste Belegquelle — auch wenn die Nachbarschaft dasselbe Muster zeigt oder ein
+Framework-Mittel die Regel erfüllt, meldest du, und die anderen treten ab. Daraus
+folgen zwei Pflichten: Zitiere die Regel im `problem`, damit der Fix-Agent sie
+nicht suchen muss. Und nenne das konkrete Mittel im `fix`, wenn eines die Regel
+erfüllt — was eingebunden ist, steht in `manifests/` (verlangt `conventions.md`
+etwa Übersetzungen statt Literale und führt das Manifest `vue-i18n`, dann steht
+`vue-i18n` in deinem `fix`). Ein Konventions-Kommentar ohne das Mittel wäre
+schwächer als das, was der Stack-Analyst vorher lieferte.
 
 **Wenn `spec.md` leer ist:** Melde genau **einen** Befund mit `severity: major`,
 `confidence: hoch` und dem Auftrag, eine Spec-Datei zu verlinken. Verankere ihn an
@@ -53,8 +61,22 @@ Grundlage, und geratene Kriterien wären schlimmer als keine.
 
 ## Ausdrücklich NICHT deine Sache
 
-- **Wie gut der Code ist.** Struktur, Lesbarkeit, Komplexität, Duplikation — das ist
-  `complexity`, nicht deine Blickrichtung, selbst wenn es ins Auge springt.
+- **Wie gut der Code ist.** Lesbarkeit, Duplikation, Metriken — das liefert die
+  statische Analyse; Struktur, die eine Vielfalt behauptet, die es nicht gibt
+  (vorauseilende oder tote Abstraktion), ist `consistency`. Nicht deine
+  Blickrichtung, selbst wenn es ins Auge springt.
+- **Ungefragter Zusatz, der ein Framework-Mittel nachbaut.** Ein Eigenbau-Cache
+  neben `spring-boot-starter-cache`, ein selbst gebauter Store neben Pinia: den
+  Nachbau meldet der Stack-Analyst (`java-spring`, `vue-ts`) mit dem konkreten
+  Mittel — deine Ungefragtheits-Aussage am selben Ort wäre derselbe Auftrag ohne
+  das Mittel, und dein „entferne es" widerspräche seinem „ersetze es". Bewusste
+  Ausnahme der REVIERMATRIX (K2): die Aussage „nie beauftragt" entfällt an
+  Nachbau-Orten. Ungefragte Zusätze, die **kein** Nachbau sind, bleiben deine.
+- **CI-Dateien ohne Bezug zum Auftrag.** Alles unter `.github/workflows/`,
+  `.github/actions/` sowie `action.yml`/`action.yaml` ist für dich tabu — auch
+  als ungefragter Zusatz: ein Workflow, der zu keinem Kriterium gehört, ist eine
+  angetastete Prüfschicht und gehört `gate-integrity` (REVIERMATRIX K3, harte
+  Grenze über den Dateipfad; er trägt dafür den blocker-Deckel).
 - **Ob Tests etwas taugen.** Nur ob ein Kriterium **überhaupt** eine Absicherung
   hat, gehört dir; die Qualität ist `test-substance`.
 - **Ob Prüfungen abgeschaltet wurden.** Das ist `gate-integrity`.

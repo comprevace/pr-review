@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync } from 'node:fs';
+import { mkdtempSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { makeBundleB, PLANTED } from './fixtures/make-bundle-b.mjs';
@@ -86,10 +86,30 @@ test('die Namen in der Landkarte sind echte Analysten', () => {
 test('das Bundle traegt den Kontext, den die Faelle brauchen', () => {
   // consistency ohne Nachbarn, java-spring ohne Manifest und spec-fidelity ohne Spec
   // koennten ihre Faelle nicht belegen und muessten raten.
-  assert.deepEqual(bundle.meta.siblings, ['src/main/java/app/InvoiceService.java']);
+  assert.deepEqual(bundle.meta.siblings, [
+    'src/main/java/app/Ids.java',
+    'src/main/java/app/InvoiceService.java',
+    'src/main/java/app/PaymentService.java',
+  ]);
   assert.deepEqual(bundle.meta.manifests, ['build.gradle.kts', 'package.json']);
   assert.equal(bundle.meta.spec_missing, false);
   assert.equal(bundle.meta.conventions_missing, false);
+});
+
+test('der consistency-Fall hat zwei Sichtungen und keine geschriebene Regel', () => {
+  // consistencys eigene Regel: ein Muster ist erst ein Muster, wenn man es zweimal
+  // sieht. Sein muss-Fall (Inline-Normalisierung) braucht also ZWEI Aufrufer von
+  // Ids.normalize in der Nachbarschaft -- und das Muster darf NICHT in conventions.md
+  // stehen, sonst gehoerte der Ort nach K1 spec-fidelity und der Fall misst nichts.
+  const sichtungen = ['InvoiceService.java', 'PaymentService.java'].filter((name) => {
+    const text = bundle.siblingText?.get?.(`src/main/java/app/${name}`)
+      ?? readFileSync(join(dir, 'siblings', 'src/main/java/app', name), 'utf8');
+    return /Ids\.normalize\(/.test(text);
+  });
+  assert.equal(sichtungen.length, 2, 'beide Nachbarn muessen Ids.normalize aufrufen');
+  const conventions = readFileSync(join(dir, 'conventions.md'), 'utf8');
+  assert.doesNotMatch(conventions, /normalis|Normalis|Ids\./,
+    'die Normalisierung darf NICHT als geschriebene Regel existieren');
 });
 
 test('mindestens ein Fall erzeugt eine echte Ueberlappung', () => {
