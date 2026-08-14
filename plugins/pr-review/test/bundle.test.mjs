@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, readFileSync, existsSync, writeFileSync, readdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { bundlePathFor, testCandidates, resolveSpecPath, buildBundle, loadBundle } from '../lib/bundle.mjs';
+import { bundlePathFor, testCandidates, resolveSpecPath, buildBundle, loadBundle, isGenerated } from '../lib/bundle.mjs';
 import { validateAll } from '../lib/findings.mjs';
 
 test('bundlePathFor liegt ausserhalb von ~/.claude und trennt Owner und Repo', () => {
@@ -44,6 +44,63 @@ test('resolveSpecPath bevorzugt Body-Link, dann Titel, dann Branch', () => {
   assert.equal(resolveSpecPath({ body: 'ohne', title: 'DEMO-77: Session', headRef: 'y' }), 'specs/DEMO-77.md');
   assert.equal(resolveSpecPath({ body: 'ohne', title: 'ohne', headRef: 'feature/DEMO-9-session' }), 'specs/DEMO-9.md');
   assert.equal(resolveSpecPath({ body: 'ohne', title: 'ohne', headRef: 'chore/cleanup' }), null);
+});
+
+test('isGenerated erkennt Lockfiles und Buendel, nicht aber echten Code', () => {
+  for (const p of [
+    'package-lock.json', 'web/package-lock.json', 'pnpm-lock.yaml', 'yarn.lock',
+    'gradle.lockfile', 'uv.lock', 'Gemfile.lock', 'assets/app.min.js', 'dist/index.html',
+  ]) {
+    assert.equal(isGenerated(p), true, p);
+  }
+  // Gegenprobe: eine Ausnahme, die zu viel ausnimmt, versteckt echten Code.
+  for (const p of [
+    'package.json', 'src/lock.ts', 'src/distance.ts', 'src/main.ts',
+    'src/components/Lockfile.vue', 'build.gradle.kts', 'docs/dist-strategie.md',
+  ]) {
+    assert.equal(isGenerated(p), false, p);
+  }
+});
+
+test('reviewableLines zaehlt generierte Dateien nicht mit', async () => {
+  const dir = join(mkdtempSync(join(tmpdir(), 'prr-gen-')), 'bundle');
+  const fakeApi = async (endpoint) => {
+    if (endpoint === '/repos/example/demo/pulls/2') {
+      return {
+        number: 2, title: 'ohne Spec', body: '', user: { login: 'alice' }, labels: [],
+        base: { sha: 'base1' }, head: { sha: 'head1', ref: 'chore/scaffold' },
+      };
+    }
+    if (endpoint === '/repos/example/demo/pulls/2/files') {
+      return [
+        // Der reale Fall: 5312 Zeilen Lockfile neben 20 Zeilen Code.
+        { filename: 'package-lock.json', status: 'added', additions: 5300, deletions: 12,
+          patch: '@@ -0,0 +1 @@\n+{"lockfileVersion":3}' },
+        { filename: 'src/main.ts', status: 'added', additions: 18, deletions: 2,
+          patch: '@@ -0,0 +1 @@\n+import { createApp } from "vue"' },
+      ];
+    }
+    if (endpoint === '/repos/example/demo/pulls/2/comments') return [];
+    const err = new Error('Not Found');
+    err.status = 404;
+    throw err;
+  };
+
+  const summary = await buildBundle({ repo: 'example/demo', number: 2, ghApi: fakeApi, bundleDir: dir });
+
+  // changedLines bleibt die Gesamtzahl -- das Feld wird nicht umdefiniert.
+  assert.equal(summary.changedLines, 5332);
+  assert.equal(summary.reviewableLines, 20);
+
+  const meta = JSON.parse(readFileSync(join(dir, 'meta.json'), 'utf8'));
+  assert.equal(meta.changed_lines, 5332);
+  assert.equal(meta.reviewable_lines, 20);
+  const byPath = new Map(meta.files.map((f) => [f.path, f]));
+  assert.equal(byPath.get('package-lock.json').generated, true);
+  assert.equal(byPath.get('src/main.ts').generated, undefined);
+  // Generierte Dateien bleiben im Bundle und damit zitierbar -- geaendert wurde
+  // nur die Zaehlung.
+  assert.ok(existsSync(join(dir, 'patches/package-lock.json.patch')));
 });
 
 test('buildBundle schreibt meta, Dateien und commentable-Map', async () => {

@@ -29,14 +29,20 @@ Erlaubte Formen: `55` · `#55` · `55 --repo owner/name` · `55 --freeze` ·
    Nummer, wenn `--bundle` gesetzt ist.
 3. Sonst: `pr-review fetch <nr>` (mit `--repo`, falls angegeben).
 
-Die Ausgabe ist JSON mit `dir`, `files`, `changedLines`, `specLink`, `missingTests`,
-`patchMissing`. **Lies nur diese Zusammenfassung**, nicht das Bundle.
+Die Ausgabe ist JSON mit `dir`, `files`, `changedLines`, `reviewableLines`, `specLink`,
+`missingTests`, `patchMissing`. **Lies nur diese Zusammenfassung**, nicht das Bundle.
 
 Bricht `fetch` ab, gib die Meldung wörtlich an den Aufrufer weiter und höre auf.
 
-**Bei `changedLines > 3000`:** frage den Aufrufer, ob trotzdem gelaufen werden soll.
+**Bei `reviewableLines > 3000`:** frage den Aufrufer, ob trotzdem gelaufen werden soll.
 Nenne dabei, dass diese Größe meist selbst der Befund ist — ein PR dieser Größe ist
 nicht mehr reviewbar.
+
+Die Schwelle hängt an `reviewableLines`, nicht an `changedLines`: generierte Dateien
+(Lockfiles, `dist/`, minifizierte Bündel) zählen nicht mit. Ein Grundgerüst-PR mit 5312
+Zeilen `package-lock.json` und 526 Zeilen Code ist reviewbar, auch wenn er 5838 geänderte
+Zeilen meldet. Liegen die beiden Zahlen auseinander, nenne dem Aufrufer **beide** — sonst
+wirkt die Entscheidung willkürlich.
 
 **Bei `--freeze`:** melde den Bundle-Pfad und höre hier auf.
 
