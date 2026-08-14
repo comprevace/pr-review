@@ -104,12 +104,15 @@ was er damit erreicht, hast du keinen Befund, sondern ein Muster gesehen.
   Prüfstrecke. Melde sie nicht, auch dann nicht, wenn der Workflow im Diff steht und du die
   Zeile deutlich siehst.
 
-  Die Grenze ist fein, deshalb ausdrücklich: **was am Auslöser und an den Rechten hängt,
-  gehört `workflow-ci`** — `pull_request_target` mit Checkout des Fork-Standes,
-  `permissions: write-all`, ungepinnte Actions. **Was an der Interpolation hängt, gehört
-  actionlint.** Für dich bleibt in einer Workflow-Datei nur, was weder das eine noch das
-  andere ist: ein Secret, das an einen Fork abfließt, oder eine Berechtigung, die einem
-  fremden Empfänger zuwächst.
+  Die Grenze ist fein, deshalb ausdrücklich: **ausgegrenzt ist nur die Interpolation —
+  sie gehört actionlint.** Ein geöffneter Weg bleibt dein Befund, auch in einer
+  Workflow-Datei: `pull_request_target` mit Checkout des Fork-Standes lässt fremden Code
+  mit den Rechten des Zielrepos laufen, und das meldest du — auch wenn `workflow-ci`
+  denselben Ort aus seinem eigenen Recht meldet, denn zwei Blickrichtungen auf demselben
+  Ort sind erwünscht und keine Doppelung. Dasselbe gilt für ein Secret, das an einen Fork
+  abfließt, oder eine Berechtigung, die einem fremden Empfänger zuwächst. Reine
+  Rechte-Hygiene ohne geöffneten Weg — `permissions: write-all`, ungepinnte Actions —
+  gehört dagegen `workflow-ci`.
 - **Ob Tests die Sicherheitslogik absichern.** Das ist `test-substance`.
 - **Ob die Anforderung erfüllt ist**, auch wenn sie sicherheitsrelevant war. Das ist
   `spec-fidelity`.

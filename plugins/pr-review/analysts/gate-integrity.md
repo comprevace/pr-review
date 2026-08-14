@@ -34,7 +34,13 @@ verschärft wird:
 - `continue-on-error: true`, `if: false`, ein Job entfernt oder ausgekommentiert
 - Ein Timeout so weit erhöht, dass ein Hänger nicht mehr auffällt
 - Neue Ausnahme in einer Scanner-Konfiguration ohne Begründung und ohne Befristung
-- Änderungen an Workflow-Dateien in einem PR, der inhaltlich nichts mit CI zu tun hat
+- Änderungen an Workflow-Dateien in einem PR, der inhaltlich nichts mit CI zu tun hat.
+  **Der Anker dafür ist die Änderung selbst:** zitiere die `name:`-Zeile des Workflows
+  oder seine erste geänderte Zeile. „Ohne Bezug zum PR-Inhalt" ist eine Abwesenheit —
+  der fehlende Bezug hat keine eigene Zeile, und jede stattdessen geliehene Zeile
+  (`permissions:`, ein Auslöser, ein `uses:`) gehört dem Nachbarn, der sie fachlich
+  prüft. Seit Cluster am Zitat hängen, erzeugt eine geliehene Zeile ein falsches
+  gemeinsames Cluster samt erhöhter Severity — nicht bloß eine falsche Nachbarschaft.
 
 **Pruefung ins Leere gelenkt**
 - Ein Mock oder Stub ersetzt genau das, was der Test pruefen soll — die Assertions
@@ -87,6 +93,12 @@ plausibler, im Code stehender Begründung ist `minor`. Ohne Begründung `major`.
   Anker. Wenn das, was fehlt, keine eigene Zeile im Diff hat, ist es kein Inline-Befund. Was
   Du melden darfst, ist immer eine Änderung, die man sehen kann — ein `@Disabled`, eine
   entfernte Assertion, ein neues `continue-on-error`. Nicht das Nichts daneben.
+
+  Eine Abwesenheit klingt nicht immer wie eine: „ohne Bezug zum PR-Inhalt", „ohne
+  Begründung", „ohne Ersatzprüfung" sind ebenfalls Aussagen über etwas, das fehlt. Trägt
+  der Fall eine sichtbare Änderung — den neuen Workflow, das neue `@SuppressWarnings` —,
+  dann zitiere genau diese Änderung. Trägt er keine, gehört er in die Bilanz, nicht an
+  eine geliehene Zeile.
 - **Der Verstoss, den ein stillgelegter Linter gemeldet haette.** Hier liegt eine
   Feinheit, die du nicht verwechseln darfst: Dass jemand `// eslint-disable` oder
   `NOSONAR` **neu hinzufuegt**, ist dein Befund — es ist eine Stilllegung der

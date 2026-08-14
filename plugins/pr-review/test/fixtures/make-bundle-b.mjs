@@ -20,6 +20,18 @@
 // mehreren Analysten, jeder aus eigenem Recht -- das ist die gepflanzte Ueberlappung, an
 // der sich Clustern und Severity-Erhoehung ueberhaupt messen lassen. `darfNicht` ist die
 // Gegenrichtung: dort muss der genannte Analyst schweigen.
+//
+// Was `evidence` zusichert -- und was nicht (entschieden am 13.08., nach zwei Messlaeufen):
+// Zugesichert und maschinell geprueft ist, dass das Zitat auffindbar und seine Zeile
+// kommentierbar ist -- der Fall KANN genau so gemeldet werden. NICHT zugesichert ist, dass
+// der Analyst dort verankert: in 3 von 13 Faellen des Messlaufs zitierte er eine andere
+// Zeile und fand die Sache trotzdem. Seit die Cluster-Achse das Zitat ist, entscheidet die
+// Ankerwahl auch ueber Verschmelzung -- deshalb ist die Zusicherung einer muss-Liste die
+// FUND-Ebene (jeder Genannte meldet den Fall, der Abgleich legt "anders verankert" zur
+// Beurteilung von Hand vor), nicht die Verschmelzung zu einem Cluster. Ob Verschmelzung
+// und Eskalation richtig rechnen, prueft cluster.test.mjs deterministisch; ein
+// probabilistischer Lauf misst das nicht. Nur wo der PROMPT den Anker vorschreibt (etwa
+// gate-integrity und die name:-Zeile), ist die Evidenz wieder eine Zusicherung.
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { commentableRanges } from '../../lib/diff.mjs';
@@ -356,8 +368,11 @@ export const PLANTED = [
     // Cluster-Schluessel das Zitat ist, entsteht Ueberlappung nur noch aus einem
     // GETEILTEN Zitat; vorher genuegten drei Zeilen Abstand, und die Zusicherung "dieses
     // Bundle kann Ueberlappung ueberhaupt ausloesen" hing damit an der Toleranz statt an
-    // der Landkarte. Im Messlauf vom 13.08. haben beide Analysten diese Zeile tatsaechlich
-    // zitiert -- gepflanzt ist hier eine Messung, keine Vermutung.
+    // der Landkarte. Im ersten Messlauf vom 13.08. zitierten beide Analysten diese Zeile;
+    // im zweiten verankerte workflow-ci auf Z16 (npm ci) und fand die Sache trotzdem.
+    // Zugesichert ist hier deshalb die FUND-Ebene: beide melden den Fall. Ob sie im Lauf
+    // dasselbe Zitat waehlen und verschmelzen, ist Vorhersage -- die Verschmelzungs- und
+    // Eskalationsrechnung selbst prueft cluster.test.mjs deterministisch.
     muss: ['workflow-ci', 'security-context'],
     file: '.github/workflows/release.yml',
     evidence: 'ref: ${{ github.event.pull_request.head.sha }}',
@@ -369,6 +384,32 @@ export const PLANTED = [
     file: '.github/workflows/release.yml',
     evidence: '- uses: actions/checkout@v4',
     line: 12,
+  },
+  {
+    fall: 'Neuer CI-Workflow ohne Bezug zum PR-Inhalt — Anker ist die Änderung selbst',
+    // Der Fall ist echt und gehoert gate-integrity: ein Release-Workflow in einem PR ueber
+    // eine Auftragsuebersicht. Gepflanzt ist hier aber vor allem der ANKER: "ohne Bezug"
+    // ist eine getarnte Abwesenheit, und am 13.08. lieh sich der Analyst dafuer
+    // permissions: write-all -- die Zeile, die workflow-ci fachlich prueft. Der Prompt
+    // schreibt seither die name:-Zeile vor; dieser Eintrag misst, ob das ankommt.
+    muss: 'gate-integrity',
+    file: '.github/workflows/release.yml',
+    evidence: 'name: Release',
+    line: 1,
+  },
+  {
+    fall: 'Rechte weiter als nötig (write-all) — die Zeile gehört workflow-ci allein',
+    // Die Gegenseite desselben Falls, gemessen am 13.08.: workflow-ci meldete write-all
+    // zu Recht (major), gate-integrity zitierte dieselbe Zeile fuer seinen
+    // ohne-Bezug-Befund -- gemeinsames Cluster, Erhoehung auf blocker. Die Sonde haelt
+    // fest, dass die Zeile nur EINEM gehoert. Schlaegt sie an, ist der geliehene Anker
+    // zurueck und die Severity-Erhoehung feuert wieder auf einer Verschmelzung, die
+    // keine Mehrfachbetroffenheit ist.
+    muss: 'workflow-ci',
+    file: '.github/workflows/release.yml',
+    evidence: 'permissions: write-all',
+    line: 6,
+    darfNicht: ['gate-integrity'],
   },
   {
     fall: 'Injection über ${{ }} in einem run-Block',
