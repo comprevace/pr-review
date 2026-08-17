@@ -30,7 +30,9 @@ Erlaubte Formen: `55` · `#55` · `55 --repo owner/name` · `55 --freeze` ·
 3. Sonst: `pr-review fetch <nr>` (mit `--repo`, falls angegeben).
 
 Die Ausgabe ist JSON mit `dir`, `files`, `changedLines`, `reviewableLines`, `specLink`,
-`missingTests`, `patchMissing`. **Lies nur diese Zusammenfassung**, nicht das Bundle.
+`missingTests`, `patchMissing`, `analysts`. **Lies nur diese Zusammenfassung**, nicht
+das Bundle. `fetch` kopiert dabei auch den Analysten-Kontrakt und die Analystendateien
+ins Bundle — Phase 1 und 2 arbeiten allein darauf.
 
 Bricht `fetch` ab, gib die Meldung wörtlich an den Aufrufer weiter und höre auf.
 
@@ -48,12 +50,13 @@ wirkt die Entscheidung willkürlich.
 
 ## Phase 1 — Analysten auswählen
 
-Ermittle die Analysten aus zwei Verzeichnissen:
+Die Analysten liegen unter `<bundle>/analysts/*.md` — `fetch` hat sie dort aus
+`<plugin>/analysts/` und `<repo>/.claude/pr-review-analysts/` zusammengelegt
+(das Repo gewinnt bei gleichem `name`). Fehlt das Verzeichnis, stammt das Bundle
+aus einem älteren `fetch`: erst neu holen, nicht die Plugin-Verzeichnisse lesen.
 
-- `<plugin>/analysts/*.md`
-- `<repo>/.claude/pr-review-analysts/*.md` (gewinnt bei gleichem `name`)
-
-Lies je Datei nur das Frontmatter und den Body. Wähle aus:
+Lies je Datei **nur das Frontmatter** — der Body gehört dem Subagenten, nicht dir.
+Wähle aus:
 
 - `when: always` → läuft immer
 - `when: paths` → läuft nur, wenn ein geänderter Pfad aus `meta.json` auf ein Glob
@@ -69,19 +72,22 @@ Starte **alle** ausgewählten Analysten **in einer einzigen Nachricht** parallel
 über den Agent-Typ `pr-review:pr-review-analyst`. **Der Name ist namespaced** — Plugin-
 Agent-Typen heißen `<plugin>:<agent>`, und der unqualifizierte Name `pr-review-analyst`
 existiert nicht. Am laufenden Plugin verifiziert. Der Auftrag je Analyst besteht aus
-genau drei Blöcken, in dieser Reihenfolge, jeweils durch eine Leerzeile getrennt und
-ohne zusätzliche Überschriften oder Vorwort von dir:
-
-1. dem vollständigen Inhalt von `<plugin>/analyst-contract.md`
-2. dem Body der Analystendatei
-3. diesem Block:
+genau diesem Block — **keine Dateiinhalte inlinen**, keine Überschriften, kein Vorwort:
 
 ```
 Bundle: <bundle-pfad>
 Dein Name: <analyst-name>
+Lies zuerst <bundle-pfad>/analyst-contract.md, dann <bundle-pfad>/analysts/<analyst-name>.md.
+Beide zusammen sind dein Auftrag.
 Schreibe deine Befunde nach <bundle-pfad>/findings/<analyst-name>.json
 Lies ausschliesslich innerhalb des Bundle-Verzeichnisses.
 ```
+
+Warum Pfade statt Inhalte: Kontrakt und Blickrichtung sind zusammen ~4000 Tokens.
+Inline musstest du sie für jeden Analysten einzeln als Text ausschreiben — gemessen
+~60 Sekunden je Start, bei neun Analysten lag der letzte Start Minuten hinter dem
+ersten, obwohl die Subagenten selbst parallel liefen. Mit Pfaden liegen alle Starts
+innerhalb von Sekunden.
 
 Ist im Frontmatter ein `model` gesetzt, nutze es für diesen Subagenten.
 

@@ -4,10 +4,10 @@ import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { ghApi, currentRepo, ghGraphql } from './gh.mjs';
 import { buildBundle, bundlePathFor, loadBundle } from './bundle.mjs';
-// Nur loadAnalysts: die Auswahl (selectAnalysts) passiert im Modell in Phase 1 der
+// Keine selectAnalysts-Nutzung: die Auswahl passiert im Modell in Phase 1 der
 // SKILL, weil nur dort bekannt ist, welche Analysten tatsaechlich gestartet wurden.
 // Die CLI erfaehrt das Ergebnis ueber --skipped.
-import { loadAnalysts } from './registry.mjs';
+import { loadAnalysts, stageAnalystMaterial } from './registry.mjs';
 import { validateAll } from './findings.mjs';
 import { clusterFindings, overlapStats } from './cluster.mjs';
 import { parseMarker } from './comment.mjs';
@@ -64,8 +64,20 @@ async function cmdFetch(positional, flags) {
     }
   }
   const summary = await buildBundle({ repo, number, ghApi });
-  logRun(summary.dir, `fetch ${repo}#${number} files=${summary.files} changedLines=${summary.changedLines} reviewableLines=${summary.reviewableLines}`);
-  process.stdout.write(`${JSON.stringify(summary, null, 2)}\n`);
+  // Kontrakt und Analysten gehoeren mit ins Bundle (Begruendung an der Funktion).
+  // Dieselben Wurzeln wie in cmdPost/cmdVerify — weicht das voneinander ab, dispatcht
+  // Phase 2 andere Analysten, als die Bilanz spaeter kennt.
+  const staged = stageAnalystMaterial({
+    bundleDir: summary.dir,
+    contractPath: join(PLUGIN_ROOT, 'analyst-contract.md'),
+    roots: [
+      flags['analysts-dir'] ?? join(PLUGIN_ROOT, 'analysts'),
+      join(process.cwd(), '.claude', 'pr-review-analysts'),
+    ],
+  });
+  const result = { ...summary, analysts: staged.analysts };
+  logRun(summary.dir, `fetch ${repo}#${number} files=${summary.files} changedLines=${summary.changedLines} reviewableLines=${summary.reviewableLines} analysts=${staged.analysts.length}`);
+  process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
 }
 
 function readAnalystFindings(bundleDir) {
@@ -203,6 +215,22 @@ export function aggregate({ bundle, analysts, analystFindings, failed, skipped =
   };
 }
 
+// Die Bilanz muss die Analysten kennen, die DISPATCHT wurden -- und das sind seit
+// fetch die Dateien im Bundle, nicht der heutige Stand der Verzeichnisse. Ein Analyst,
+// der zwischen fetch und post aus dem Plugin entfernt wurde, verschwaende sonst aus
+// der Ausfallliste; einer, der dazukam, stuende als ausgefallen da, obwohl ihn niemand
+// gestartet hat. Der Verzeichnis-Fallback traegt Bundles aus der Zeit vor dem Staging;
+// ein explizites --analysts-dir gewinnt, denn es ist der Tuning-Weg an fetch vorbei.
+function analystRootsFor(bundleDir, flags) {
+  if (!flags['analysts-dir'] && existsSync(join(bundleDir, 'analysts'))) {
+    return [join(bundleDir, 'analysts')];
+  }
+  return [
+    flags['analysts-dir'] ?? join(PLUGIN_ROOT, 'analysts'),
+    join(process.cwd(), '.claude', 'pr-review-analysts'),
+  ];
+}
+
 // `--bundle` liefert absichtlich keine PR-Nummer -- der in der SKILL dokumentierte
 // Tuning-Modus (`--bundle <pfad> --only <analyst>`) will genau das eingefrorene
 // Bundle verwenden, ohne Repo oder Nummer erneut anzugeben. Repo und Nummer stehen
@@ -243,11 +271,7 @@ async function cmdPost(positional, flags) {
   }
   const bundle = loadBundle(bundleDir);
 
-  const analystRoots = [
-    flags['analysts-dir'] ?? join(PLUGIN_ROOT, 'analysts'),
-    join(process.cwd(), '.claude', 'pr-review-analysts'),
-  ];
-  const analysts = loadAnalysts(analystRoots);
+  const analysts = loadAnalysts(analystRootsFor(bundleDir, flags));
   const { raw, failed: jsonFailed } = readAnalystFindings(bundleDir);
   const declaredFailed = [...jsonFailed, ...parseFailed(flags.failed)];
   if (raw.size === 0 && declaredFailed.length === 0) {
@@ -314,11 +338,7 @@ async function cmdVerify(positional, flags) {
   }
   const bundle = loadBundle(bundleDir);
 
-  const analystRoots = [
-    flags['analysts-dir'] ?? join(PLUGIN_ROOT, 'analysts'),
-    join(process.cwd(), '.claude', 'pr-review-analysts'),
-  ];
-  const analysts = loadAnalysts(analystRoots);
+  const analysts = loadAnalysts(analystRootsFor(bundleDir, flags));
   const { raw, failed: jsonFailed } = readAnalystFindings(bundleDir);
   const declaredFailed = [...jsonFailed, ...parseFailed(flags.failed)];
   if (raw.size === 0) fail('Keine Analysten-Findings im Bundle. Kein Zweitlauf moeglich.');

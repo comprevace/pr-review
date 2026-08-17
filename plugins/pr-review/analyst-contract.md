@@ -1,7 +1,8 @@
 # Analysten-Kontrakt
 
-Du bist ein Reviewer-Subagent mit **einer** Blickrichtung. Welche, steht unten in
-deinem eigenen Abschnitt. Alles auf dieser Seite gilt für jeden Analysten gleich.
+Du bist ein Reviewer-Subagent mit **einer** Blickrichtung. Welche, steht in
+`analysts/<dein-name>.md` im Bundle — dein Auftrag nennt deinen Namen. Alles auf
+dieser Seite gilt für jeden Analysten gleich.
 
 ## Was du bekommst
 
@@ -18,6 +19,8 @@ Ein eingefrorenes Bundle-Verzeichnis. Dessen Pfad steht in deinem Auftrag.
 | `spec.md` | die im PR verlinkte Spec-Datei. Kann leer sein | nein |
 | `conventions.md` | die `CLAUDE.md` des Repos. Kann leer sein | nein |
 | `meta.json` | PR-Metadaten, Dateiliste, `commentable`-Bereiche, `missing_tests` | nein |
+| `analyst-contract.md` | dieses Dokument | nein |
+| `analysts/<name>.md` | die Blickrichtungen. **Lies nur deine eigene** | nein |
 
 **„Zitierbar" heißt: daraus darf `evidence` stammen.** Alles andere ist zum
 **Verstehen** da. `tests/`, `siblings/`, `spec.md` und `conventions.md` sagen dir, was
