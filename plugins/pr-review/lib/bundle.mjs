@@ -75,13 +75,30 @@ export function testCandidates(path) {
 }
 
 export function resolveSpecPath({ body = '', title = '', headRef = '' }) {
-  const direct = /specs\/([A-Z][A-Z0-9]*-\d+)\.md/.exec(body || '');
-  if (direct) return `specs/${direct[1]}.md`;
+  // Ein expliziter Link im PR-Body gewinnt und darf auf jede .md-Datei zeigen -- auch
+  // hinter einem Submodule-Gitlink (Aufloesung in fetchTextAcrossSubmodules). Verlangt
+  // ist ein repo-relativer Pfad MIT Verzeichnisanteil: das grenzt gegen blosse
+  // Dateinamen-Erwaehnungen (README.md) ab. Der Zeichenvorrat ohne ":" und die
+  // Vorzeichen-Klasse lassen keine URL durch -- aus einem GitHub-Link soll nicht
+  // stillschweigend ein Repo-Pfad geraten werden, denn eine falsch geladene Spec ist
+  // schlimmer als eine fehlende: spec-fidelity pruefte dann gegen das falsche Papier.
+  // Der erste Treffer zaehlt; meta.spec_link macht die Wahl nachlesbar.
+  const explicit = /(?:^|[\s([`'"<])((?:[\w.-]+\/)+[\w.-]+\.md)\b/.exec(body || '');
+  if (explicit) return explicit[1];
   const fromTitle = /\b([A-Z][A-Z0-9]*-\d+)\b/.exec(title || '');
   if (fromTitle) return `specs/${fromTitle[1]}.md`;
   const fromBranch = /\b([A-Z][A-Z0-9]*-\d+)\b/.exec(headRef || '');
   if (fromBranch) return `specs/${fromBranch[1]}.md`;
   return null;
+}
+
+// Aus den ueblichen Submodule-Quell-URLs (git@github.com:o/r.git, https://github.com/o/r,
+// ssh://git@github.com/o/r.git) wird "owner/repo". Alles andere -- fremde Hosts,
+// relative Pfade -- ist null: gh kann es nicht holen, und die Spec gilt dann als nicht
+// auffindbar statt als Fehler des Laufs.
+export function parseGitHubRepo(url) {
+  const m = /(?:^|[@/])github\.com[/:]([\w.-]+)\/([\w.-]+?)(?:\.git)?\/?$/.exec(String(url ?? ''));
+  return m ? `${m[1]}/${m[2]}` : null;
 }
 
 function writeUnder(dir, relPath, content) {
@@ -153,6 +170,41 @@ async function fetchText(ghApi, repo, path, ref) {
     if (err.status === 404) return null;
     throw err;
   }
+}
+
+// Ein explizit verlinkter Spec-Pfad darf durch ein Submodule zeigen. Die Contents-API
+// des PR-Repos endet am Gitlink: fuer einen Pfad dahinter antwortet sie 404, am Gitlink
+// selbst liefert sie type "submodule" mit SHA und Quell-URL. Der SHA ist der Stand des
+// Submodules im Head-Commit des PR -- also exakt die Spec-Fassung, die der PR meint.
+// Aufgeloest wird deshalb ueber den Gitlink, nie ueber den Default-Branch des
+// Spec-Repos: der kann weitergelaufen sein, und das Bundle waere nicht mehr eingefroren.
+//
+// Gesucht wird vom kuerzesten Praefix aus (Submodules liegen praktisch immer weit oben);
+// ein 404 auf einem Praefix beendet die Suche, denn tiefere Praefixe desselben Pfads
+// koennen dann auch nicht existieren. Rekursiv, damit ein Submodule im Submodule ohne
+// Sonderfall funktioniert. Nur der Spec-Fetch benutzt das: geaenderte Dateien, Tests,
+// Geschwister und Manifeste liegen per Konstruktion im PR-Repo selbst -- ein PR aendert
+// am Submodule hoechstens den Gitlink, nie eine Datei dahinter.
+export async function fetchTextAcrossSubmodules(ghApi, repo, path, ref) {
+  const direct = await fetchText(ghApi, repo, path, ref);
+  if (direct !== null) return direct;
+  const segments = path.split('/');
+  for (let i = 1; i < segments.length; i++) {
+    const prefix = segments.slice(0, i).join('/');
+    let entry;
+    try {
+      entry = await ghApi(`/repos/${repo}/contents/${encodeURI(prefix)}?ref=${ref}`);
+    } catch (err) {
+      if (err.status === 404) return null;
+      throw err;
+    }
+    if (Array.isArray(entry)) continue;
+    if (entry?.type !== 'submodule') return null;
+    const subRepo = parseGitHubRepo(entry.submodule_git_url);
+    if (!subRepo) return null;
+    return fetchTextAcrossSubmodules(ghApi, subRepo, segments.slice(i).join('/'), entry.sha);
+  }
+  return null;
 }
 
 // Der Verzeichnis-Endpunkt liefert ein Array, der Datei-Endpunkt ein Objekt mit content.
@@ -302,7 +354,7 @@ async function fetchInto({ repo, number, ghApi, dir, staging }) {
   }
 
   const specLink = resolveSpecPath({ body: pr.body, title: pr.title, headRef: pr.head.ref });
-  const specText = specLink ? await fetchText(ghApi, repo, specLink, headSha) : null;
+  const specText = specLink ? await fetchTextAcrossSubmodules(ghApi, repo, specLink, headSha) : null;
   writeUnder(dir, 'spec.md', specText ?? '');
   const conventions = await fetchText(ghApi, repo, 'CLAUDE.md', headSha);
   writeUnder(dir, 'conventions.md', conventions ?? '');

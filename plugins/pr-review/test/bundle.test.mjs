@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, readFileSync, existsSync, writeFileSync, readdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { bundlePathFor, testCandidates, resolveSpecPath, buildBundle, loadBundle, isGenerated } from '../lib/bundle.mjs';
+import { bundlePathFor, testCandidates, resolveSpecPath, buildBundle, loadBundle, isGenerated, parseGitHubRepo, fetchTextAcrossSubmodules } from '../lib/bundle.mjs';
 import { validateAll } from '../lib/findings.mjs';
 
 test('bundlePathFor liegt ausserhalb von ~/.claude und trennt Owner und Repo', () => {
@@ -44,6 +44,119 @@ test('resolveSpecPath bevorzugt Body-Link, dann Titel, dann Branch', () => {
   assert.equal(resolveSpecPath({ body: 'ohne', title: 'DEMO-77: Session', headRef: 'y' }), 'specs/DEMO-77.md');
   assert.equal(resolveSpecPath({ body: 'ohne', title: 'ohne', headRef: 'feature/DEMO-9-session' }), 'specs/DEMO-9.md');
   assert.equal(resolveSpecPath({ body: 'ohne', title: 'ohne', headRef: 'chore/cleanup' }), null);
+});
+
+test('ein expliziter Body-Link darf auf jede .md-Datei zeigen, auch ausserhalb von specs/', () => {
+  // Gemessen an echten Repos: Spezifikationen liegen nicht zwingend unter specs/<ID>.md
+  // im PR-Repo -- sie koennen ueber ein Submodule referenziert sein, und ihr Pfad folgt
+  // dann der Struktur des Dokumentations-Repos. Der explizite Link ist die einzige Form, die ohne
+  // Raten auskommt; er verlangt einen repo-relativen Pfad MIT Verzeichnisanteil.
+  assert.equal(
+    resolveSpecPath({ body: 'Abnahme: docs-sub/specs/DEMO-7.md', title: 'x', headRef: 'y' }),
+    'docs-sub/specs/DEMO-7.md',
+  );
+  // Markdown-Linkform.
+  assert.equal(
+    resolveSpecPath({ body: 'siehe [Spec](docs-sub/specs/DEMO-7.md).', title: 'x', headRef: 'y' }),
+    'docs-sub/specs/DEMO-7.md',
+  );
+  // Der explizite Pfad schlaegt die Ticket-ID im Titel.
+  assert.equal(
+    resolveSpecPath({ body: 'docs-sub/a/b.md', title: 'DEMO-77: Session', headRef: 'y' }),
+    'docs-sub/a/b.md',
+  );
+  // Eine URL ist KEIN repo-relativer Pfad: aus einem GitHub-Link soll nicht
+  // stillschweigend ein Pfad geraten werden -- dann greift die naechste Stufe.
+  assert.equal(
+    resolveSpecPath({ body: 'https://github.com/x/y/blob/main/docs/a.md', title: 'DEMO-77: Session', headRef: 'y' }),
+    'specs/DEMO-77.md',
+  );
+  // Ein blosser Dateiname ohne Verzeichnisanteil ist eine Erwaehnung, kein Link.
+  assert.equal(
+    resolveSpecPath({ body: 'siehe README.md', title: 'ohne', headRef: 'chore/x' }),
+    null,
+  );
+});
+
+test('parseGitHubRepo liest owner/name aus den ueblichen Submodule-URLs', () => {
+  assert.equal(parseGitHubRepo('git@github.com:acme/handbook.git'), 'acme/handbook');
+  assert.equal(parseGitHubRepo('https://github.com/acme/handbook.git'), 'acme/handbook');
+  assert.equal(parseGitHubRepo('https://github.com/acme/handbook'), 'acme/handbook');
+  assert.equal(parseGitHubRepo('ssh://git@github.com/acme/handbook.git'), 'acme/handbook');
+  // Fremde Hosts kann gh nicht holen -- das ist "nicht aufloesbar", kein Absturz.
+  assert.equal(parseGitHubRepo('git@gitlab.example.com:acme/handbook.git'), null);
+  assert.equal(parseGitHubRepo('../relative/path'), null);
+});
+
+test('fetchTextAcrossSubmodules folgt dem Gitlink und pinnt auf dessen SHA', async () => {
+  // Die Contents-API des PR-Repos endet am Gitlink: ein Pfad dahinter ist 404, der
+  // Gitlink selbst antwortet mit type "submodule", SHA und Quell-URL. Der SHA ist der
+  // Stand des Submodules im Head-Commit des PR -- also exakt die Spec-Fassung, die der
+  // PR meint. Wuerde stattdessen der Default-Branch des Spec-Repos geholt, laese der
+  // Reviewer eine Spec, die weitergelaufen ist: das Bundle waere nicht mehr eingefroren.
+  const calls = [];
+  const api = async (endpoint) => {
+    calls.push(endpoint);
+    if (endpoint === '/repos/example/demo/contents/docs-sub?ref=head1') {
+      return { type: 'submodule', sha: 'gitlink1', submodule_git_url: 'git@github.com:acme/handbook.git' };
+    }
+    if (endpoint === '/repos/acme/handbook/contents/specs/DEMO-7.md?ref=gitlink1') {
+      return { content: Buffer.from('# DEMO-7\n1. Kriterium\n').toString('base64'), encoding: 'base64' };
+    }
+    const err = new Error('Not Found'); err.status = 404; throw err;
+  };
+
+  const text = await fetchTextAcrossSubmodules(api, 'example/demo', 'docs-sub/specs/DEMO-7.md', 'head1');
+  assert.equal(text, '# DEMO-7\n1. Kriterium\n');
+  assert.ok(
+    calls.includes('/repos/acme/handbook/contents/specs/DEMO-7.md?ref=gitlink1'),
+    'der Abruf im Spec-Repo muss auf den Gitlink-SHA gepinnt sein',
+  );
+
+  // Kein Submodule auf dem Weg: null, kein Wurf.
+  const miss = async (endpoint) => { const e = new Error('nf'); e.status = 404; throw e; };
+  assert.equal(await fetchTextAcrossSubmodules(miss, 'example/demo', 'docs-sub/specs/DEMO-7.md', 'head1'), null);
+
+  // Nicht aufloesbare Quelle (fremder Host): null -- meta.spec_missing sagt es dann.
+  const foreign = async (endpoint) => {
+    if (endpoint === '/repos/example/demo/contents/docs-sub?ref=head1') {
+      return { type: 'submodule', sha: 'gitlink1', submodule_git_url: 'git@gitlab.example.com:acme/handbook.git' };
+    }
+    const err = new Error('Not Found'); err.status = 404; throw err;
+  };
+  assert.equal(await fetchTextAcrossSubmodules(foreign, 'example/demo', 'docs-sub/specs/DEMO-7.md', 'head1'), null);
+});
+
+test('buildBundle holt eine explizit verlinkte Spec durch das Submodule', async () => {
+  const dir = join(mkdtempSync(join(tmpdir(), 'prr-subspec-')), 'bundle');
+  const api = async (endpoint) => {
+    if (endpoint === '/repos/example/demo/pulls/6') {
+      return { number: 6, title: 'Session-Warnung', body: 'Abnahme: docs-sub/specs/DEMO-7.md',
+        user: { login: 'a' }, labels: [], base: { sha: 'b' }, head: { sha: 'head1', ref: 'feat/session' } };
+    }
+    if (endpoint === '/repos/example/demo/pulls/6/files') {
+      return [{ filename: 'src/a.ts', status: 'modified', additions: 1, deletions: 0, patch: '@@ -1 +1,2 @@\n keep\n+add' }];
+    }
+    if (endpoint === '/repos/example/demo/pulls/6/comments') return [];
+    if (endpoint.startsWith('/repos/example/demo/contents/src/a.ts')) {
+      return { content: Buffer.from('keep\nadd\n').toString('base64'), encoding: 'base64' };
+    }
+    if (endpoint === '/repos/example/demo/contents/docs-sub?ref=head1') {
+      return { type: 'submodule', sha: 'gitlink1', submodule_git_url: 'https://github.com/acme/handbook.git' };
+    }
+    if (endpoint === '/repos/acme/handbook/contents/specs/DEMO-7.md?ref=gitlink1') {
+      return { content: Buffer.from('# DEMO-7\n1. Kriterium\n').toString('base64'), encoding: 'base64' };
+    }
+    const err = new Error('Not Found'); err.status = 404; throw err;
+  };
+
+  const summary = await buildBundle({ repo: 'example/demo', number: 6, ghApi: api, bundleDir: dir });
+
+  assert.equal(summary.specLink, 'docs-sub/specs/DEMO-7.md');
+  assert.equal(readFileSync(join(dir, 'spec.md'), 'utf8'), '# DEMO-7\n1. Kriterium\n');
+  const meta = JSON.parse(readFileSync(join(dir, 'meta.json'), 'utf8'));
+  assert.equal(meta.spec_missing, false);
+  assert.equal(meta.spec_link, 'docs-sub/specs/DEMO-7.md');
 });
 
 test('isGenerated erkennt Lockfiles und Buendel, nicht aber echten Code', () => {
