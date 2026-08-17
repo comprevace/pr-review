@@ -85,10 +85,15 @@ export function resolveSpecPath({ body = '', title = '', headRef = '' }) {
   // Der erste Treffer zaehlt; meta.spec_link macht die Wahl nachlesbar.
   const explicit = /(?:^|[\s([`'"<])((?:[\w.-]+\/)+[\w.-]+\.md)\b/.exec(body || '');
   if (explicit) return explicit[1];
-  const fromTitle = /\b([A-Z][A-Z0-9]*-\d+)\b/.exec(title || '');
+  // Das optionale Kleinbuchstaben-Suffix (US-01a) gehoert in beide Zweige: zwischen
+  // Ziffer und Suffix gibt es keine Wortgrenze, eine solche ID kam frueher NIRGENDS an.
+  const fromTitle = /\b([A-Z][A-Z0-9]*-\d+[a-z]?)\b/.exec(title || '');
   if (fromTitle) return `specs/${fromTitle[1]}.md`;
-  const fromBranch = /\b([A-Z][A-Z0-9]*-\d+)\b/.exec(headRef || '');
-  if (fromBranch) return `specs/${fromBranch[1]}.md`;
+  // Branch-Namen sind ueblicherweise kleingeschrieben (feat/us-01a-login-ui). Der
+  // Praefix wird auf die Schreibweise der Dateikonvention normalisiert (US-01a.md);
+  // das Suffix bleibt klein, denn so unterscheidet die Konvention Teil-Stories.
+  const fromBranch = /\b([A-Za-z][A-Za-z0-9]*-\d+[a-z]?)\b/.exec(headRef || '');
+  if (fromBranch) return `specs/${fromBranch[1].replace(/^[^-]+/, (s) => s.toUpperCase())}.md`;
   return null;
 }
 

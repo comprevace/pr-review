@@ -98,9 +98,12 @@ Verzeichnis steht, hast du keine Grundlage: `[]` ist dann die richtige Antwort.
   im Framework oder einer eingebundenen Bibliothek (`manifests/`), gehört der Befund
   dem Stack-Analysten: `java-spring` für Java, `vue-ts` für Vue/TypeScript
   (REVIERMATRIX K2) — auch dann, wenn die Nachbarn zusätzlich zeigen, dass hier
-  niemand so baut. Ein zustandsloser Nachbar ist **eine** Sichtung und nach deiner
-  eigenen Regel ohnehin kein Muster. Dir gehört die eigene Hilfsfunktion neben einer
-  vorhandenen **im Repo**.
+  niemand so baut. **Und die Formulierung ändert den Besitz nicht:** auch als
+  „Musterabweichung von zustandslosen Nachbarn" gerahmt, gehört eine Zustands-,
+  Zwischenspeicher- oder Ablauf-Schicht, für die das Framework einen Baustein hat,
+  dem Stack-Analysten — die Grenze hängt am **Gegenstand**, nicht daran, ob du ihn
+  Nachbau nennst. Dir gehört die eigene Hilfsfunktion neben einer vorhandenen
+  **im Repo**.
 - **Duplikation im Sinne von Klonen.** Zwei gleiche Blöcke zu finden ist Aufgabe eines
   Duplikationsscanners in der statischen Analyse, der das repo-weit und deterministisch
   kann. Du siehst nur ein Verzeichnis und würdest raten. Dir gehört das **zweite Muster**

@@ -357,7 +357,12 @@ export const PLANTED = [
     file: 'src/main/java/app/OrderService.java',
     evidence: 'cache.entrySet().removeIf(e -> e.getValue().ageMinutes() > 4500);',
     line: 25,
-    darfNicht: ['java-spring'],
+    // Bis 17.08. stand hier darfNicht: ['java-spring'] -- die Sonde war aelter als die
+    // Reviermatrix und widersprach U4: "Ablauflogik statt TTL/@Scheduled" (java-spring,
+    // Nachbau) neben "die Zahl traegt kein Warum" (rationale, unerklaert) sind zwei
+    // Aussagen aus zwei Rechten und als Ueberlappung erwuenscht -- erlaubt, nicht
+    // zugesichert. Im opus-5/low-Kalibrierungslauf meldete java-spring dort einen
+    // echten Nachbau-Befund, und die veraltete Sonde markierte ihn als Leck.
   },
   {
     fall: 'Wurf gegen die geschriebene Result-Konvention',

@@ -73,6 +73,13 @@ getaggt (`consistency` + `java-spring` + `spec-fidelity`) und auf blocker erhöh
 Sonde: „Eigener Cache statt @Cacheable" (muss `java-spring`, darfNicht
 `consistency`, `spec-fidelity`).
 
+**Nachgeschärft am 17.08.:** Die Grenze hängt am **Gegenstand**, nicht an der
+Formulierung. Im Kalibrierungslauf unter dem Betriebs-Pin (opus-5/effort-low)
+meldete `consistency` den Cache erneut — exakt am Sondenzitat, aber neu gerahmt
+als „Musterabweichung von zustandslosen Nachbarn", ohne das Wort Nachbau. Der
+Prompt trägt seither ausdrücklich: auch so gerahmt gehört eine Zustands-,
+Zwischenspeicher- oder Ablauf-Schicht mit Framework-Baustein dem Stack-Analysten.
+
 ## K3 — Änderung ohne Bezug in CI-Dateien
 
 Eigentümer: **`gate-integrity`, allein.** Die Abtretung von `spec-fidelity` läuft
@@ -102,7 +109,7 @@ Anker `name:`, darfNicht `spec-fidelity`).
 | U1 | History-Endpunkt ohne Autorisierung | `security-context` (offener Weg, Vergleichsfall im Diff) + `spec-fidelity` (Kriterium 2 unerfüllt) + `test-substance` (nur Erreichbarkeitstest — beobachtet, nicht gepflanzt) |
 | U2 | `pull_request_target` mit Fork-Checkout | `workflow-ci` (Auslöser samt Checkout) + `security-context` (geöffneter Weg) — die gepflanzte Überlappung |
 | U3 | dieselbe Zeile „anders" und „unerklärt" | `consistency` (anders als die Nachbarn) + `rationale` (Warum fehlt) |
-| U4 | dieselbe Zeile „Nachbau" und „unerklärt" (Deep-Watch, Lauf 3) | `java-spring`/`vue-ts` (Nachbau statt Framework-Mittel) + `rationale` (Umweg unbegründet) — **erlaubt, nicht zugesichert**: kein muss, keine Sonde |
+| U4 | dieselbe Zeile „Nachbau" und „unerklärt" (Deep-Watch, Lauf 3) | `java-spring`/`vue-ts` (Nachbau statt Framework-Mittel) + `rationale` (Umweg unbegründet) — **erlaubt, nicht zugesichert**: kein muss, keine Sonde. Die 4500-Sonde sperrte `java-spring` dort bis 17.08. aus — sie war älter als diese Zeile und wurde an sie angeglichen |
 
 Der Unterschied zu K: hier stehen zwei **verschiedene** Aussagen mit zwei
 verschiedenen Aufträgen am selben Ort. Verschmelzen sie über ein geteiltes Zitat,
@@ -123,6 +130,11 @@ Sonde — wie U4 erlaubt, nicht zugesichert.
 - **Abwesenheit ohne eigenen Anker** (fehlende Testdatei, `missing_tests`): gehört
   der **Bilanz**, keinem Analysten. Sonden halten `gate-integrity` und
   `test-substance` fest. Entschieden mit Befund 4 (13.08.).
+- **Fehlende Spec (`spec_missing`)**: dieselbe Regel, dritter Fall — gehört der
+  **Bilanz** („Lücken in der Eingabe"), nicht `spec-fidelity`. Er arbeitet ohne
+  Spec gegen `conventions.md` weiter und erfindet keine Kriterien. Entschieden am
+  17.08. (Betreiber-Messung 14.08.: fünf echte PRs, fünfmal derselbe
+  verankerte major mit dekorativem Zitat — die einzige major-Quelle der Runde).
 - **`${{ }}`-Interpolation in `run:`-Blöcken**: gehört **actionlint** (Werkzeug).
   Sonden halten `workflow-ci` und `security-context` fest.
 - **Rechte-Hygiene ohne geöffneten Weg** (`permissions: write-all`, ungepinnte

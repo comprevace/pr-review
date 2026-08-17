@@ -151,6 +151,37 @@ test('U1/U2: die gepflanzten erwuenschten Ueberlappungen bleiben zugesichert', (
   assert.equal(mussListe(kriterium)[0], 'spec-fidelity', 'U1: das unerfuellte Kriterium gehoert spec-fidelity');
 });
 
+test('K2: die Formulierung aendert den Besitz nicht — consistency traegt das ausdruecklich', () => {
+  // Gemessen am 17.08. (Kalibrierungslauf unter dem Betriebs-Pin opus-5/effort-low):
+  // consistency meldete den Eigenbau-Cache trotz K2-Sonde erneut -- exakt am
+  // Sondenzitat, aber NEU GERAHMT als "Caching-Schicht ohne Vorbild in der
+  // Nachbarschaft", ohne das Wort Nachbau und ohne Framework-Bezug. Die Grenze griff
+  // nicht, weil sie am Begriff "Nachbau" hing statt am Gegenstand. Ein Prompt, der nur
+  // die Formulierung verbietet, laedt zur Umformulierung ein -- die Grenze muss am
+  // Gegenstand haengen (Zustands-/Zwischenspeicher-/Ablauf-Schicht, fuer die das
+  // Framework einen Baustein hat).
+  const k2 = abgrenzung('consistency');
+  assert.match(k2, /Formulierung ändert den Besitz nicht|egal, wie du sie nennst/,
+    'consistency muss die Rahmungs-Unabhaengigkeit der K2-Grenze ausdruecklich tragen');
+  assert.match(k2, /Zwischenspeicher|Zustands/,
+    'die Grenze muss den Gegenstand benennen, nicht nur den Begriff Nachbau');
+});
+
+test('U4: die 4500-Sonde sperrt den Stack-Analysten nicht mehr aus', () => {
+  // Die Sonde darfNicht ['java-spring'] auf der 4500-Zeile stammt von VOR der Matrix
+  // und widersprach U4: "Nachbau" (java-spring: Ablauflogik statt TTL/@Scheduled) neben
+  // "unerklaert" (rationale: die Zahl traegt kein Warum) ist die als erwuenscht
+  // entschiedene rationale+Stack-Ueberlappung -- erlaubt, nicht zugesichert. Gemessen
+  // am 17.08.: java-spring meldete dort einen echten Nachbau-Befund, und die veraltete
+  // Sonde markierte ihn als Leck. Eine Sonde, die einer entschiedenen Matrix-Zeile
+  // widerspricht, misst gegen das falsche Soll.
+  const p = PLANTED.find((x) => x.fall === 'Unbegründete Zahl');
+  assert.ok(p, 'der 4500-Fall fehlt in der Landkarte');
+  assert.deepEqual(mussListe(p), ['rationale'], 'der Fall bleibt rationales muss');
+  assert.ok(!(p.darfNicht ?? []).includes('java-spring'),
+    'java-spring darf an der 4500-Zeile melden — U4 erlaubt die Ueberlappung');
+});
+
 test('U4: rationale nennt die Stack-Analysten als zweite Blickrichtung, nicht als Eigentuemer', () => {
   // "anders" vs. "erklaert" (U3) hat ein Geschwister bekommen: "Nachbau" vs.
   // "erklaert" (U4, Deep-Watch-Fall aus Lauf 3). Erlaubt, nicht zugesichert -- kein
