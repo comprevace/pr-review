@@ -312,6 +312,31 @@ test('gate-integrity leiht sich fuer den Workflow-ohne-Bezug-Befund keinen Anker
     'die Abwesenheitsregel muss die getarnte Abwesenheit abdecken, sonst greift sie wieder nicht');
 });
 
+test('spec-fidelity meldet eine fehlende Spec nicht mehr als Befund', () => {
+  // Gemessen am 14.08. auf fuenf echten PRs (Betreiber-Messung 14.08.): die leere
+  // spec.md erzeugte fuenfmal denselben verankerten major mit dekorativem Zitat aus der
+  // ersten geaenderten Zeile -- die einzige major-Quelle der ganzen Runde. Dabei ist das
+  // Fehlen deterministisch bekannt (meta.spec_missing) und steht seit jeher in der
+  // Bilanz unter "Luecken in der Eingabe": der Analysten-Befund war eine Doppelmeldung
+  // UND ein Verstoss gegen die eigene Abwesenheitsregel (REVIERMATRIX E) -- eine
+  // Abwesenheit hat keinen eigenen Anker, und die erste geaenderte Zeile belegt nichts.
+  //
+  // Schweigen zur fehlenden Spec heisst nicht verstummen: die Konventionspruefung (K1)
+  // traegt ihn auch ohne Bezugsdokument. Nur Kriteriums-Befunde haben ohne Spec keine
+  // Grundlage.
+  const byName = new Map(loadAnalysts([join(ROOT, 'analysts')]).map((a) => [a.name, a]));
+  const body = byName.get('spec-fidelity').body;
+  assert.doesNotMatch(body, /Melde genau \*\*einen\*\* Befund/,
+    'die Anweisung zum verankerten Spec-fehlt-Befund muss weg');
+  assert.doesNotMatch(body, /ersten geänderten Zeile/,
+    'der geliehene Anker an der ersten geaenderten Zeile muss weg');
+  assert.match(body, /Bilanz/, 'muss die Bilanz als Ort des Fehlens nennen');
+  assert.match(body, /spec_missing/, 'muss das deterministische Feld benennen');
+  const leerAbschnitt = /Wenn `spec\.md` leer ist[\s\S]*?(?=\n##|$)/.exec(body)?.[0] ?? '';
+  assert.match(leerAbschnitt, /conventions\.md/,
+    'muss sagen, dass die Konventionspruefung ohne Spec weiterlaeuft');
+});
+
 test('security-context verlangt Zurueckhaltung, wo die Kontextgrenze urteilt', () => {
   // Der gefaehrlichste Analyst fuer Falschbefunde: Autorisierung wird haeufig zentral
   // erzwungen -- in einem Interceptor, einer Filterkette, einer Policy-Datei -- und

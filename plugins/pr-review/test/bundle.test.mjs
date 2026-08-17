@@ -78,6 +78,18 @@ test('ein expliziter Body-Link darf auf jede .md-Datei zeigen, auch ausserhalb v
   );
 });
 
+test('die ID-Heuristiken kennen Buchstaben-Suffixe und kleingeschriebene Branches', () => {
+  // Betreiber-Messung 14.08., gemessen an einem echten PR: die ID US-01a
+  // scheiterte in allen drei Zweigen aus drei verschiedenen Gruenden -- der direct-Zweig
+  // verlangte .md direkt nach den Ziffern, der Titel-Zweig ein \b zwischen Ziffer und
+  // Suffix (dort ist keins), der Branch-Zweig einen Grossbuchstaben am Anfang. Eine ID
+  // mit Buchstabensuffix kam damit NIRGENDS an, egal wann die Spec-Datei entstand.
+  assert.equal(resolveSpecPath({ body: 'ohne', title: 'Auth-Schicht (US-01a)', headRef: 'y' }), 'specs/US-01a.md');
+  assert.equal(resolveSpecPath({ body: 'ohne', title: 'ohne', headRef: 'feat/us-01a-login-ui' }), 'specs/US-01a.md');
+  // Bestand: IDs ohne Suffix unveraendert, Titel gewinnt vor Branch.
+  assert.equal(resolveSpecPath({ body: 'ohne', title: 'Seed je Rolle (TE-08, TE-05)', headRef: 'y' }), 'specs/TE-08.md');
+});
+
 test('parseGitHubRepo liest owner/name aus den ueblichen Submodule-URLs', () => {
   assert.equal(parseGitHubRepo('git@github.com:acme/handbook.git'), 'acme/handbook');
   assert.equal(parseGitHubRepo('https://github.com/acme/handbook.git'), 'acme/handbook');

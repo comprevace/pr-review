@@ -53,11 +53,17 @@ etwa Übersetzungen statt Literale und führt das Manifest `vue-i18n`, dann steh
 `vue-i18n` in deinem `fix`). Ein Konventions-Kommentar ohne das Mittel wäre
 schwächer als das, was der Stack-Analyst vorher lieferte.
 
-**Wenn `spec.md` leer ist:** Melde genau **einen** Befund mit `severity: major`,
-`confidence: hoch` und dem Auftrag, eine Spec-Datei zu verlinken. Verankere ihn an
-der ersten geänderten Zeile der ersten Datei. Erfinde keine Akzeptanzkriterien und
-melde danach nichts weiter — ohne Bezugsdokument hat deine Blickrichtung keine
-Grundlage, und geratene Kriterien wären schlimmer als keine.
+**Wenn `spec.md` leer ist:** Melde das Fehlen **nicht** — es steht deterministisch in
+`meta.json` (`spec_missing`), und die **Bilanz** führt es unter „Lücken in der Eingabe"
+auf, vollständig und ohne dich. Ein Befund dazu wäre eine Doppelmeldung über eine
+**Abwesenheit**, und eine Abwesenheit hat keinen eigenen Anker: die erste geänderte
+Zeile belegt nichts, sie liegt nur zufällig daneben.
+
+Verstumme deshalb nicht ganz, sondern arbeite mit dem, was trägt: **Konventionsbrüche
+gegen `conventions.md` bleiben deine Sache** — die Regel ist auch ohne Spec zitierbar
+und nachlesbar. Nur Kriteriums-Befunde haben ohne Bezugsdokument keine Grundlage:
+erfinde keine Akzeptanzkriterien, und melde keine Lücken gegen ein Papier, das nicht
+da ist.
 
 ## Ausdrücklich NICHT deine Sache
 
