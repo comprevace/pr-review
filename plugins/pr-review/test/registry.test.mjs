@@ -1,9 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, mkdirSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { parseFrontmatter, loadAnalysts, selectAnalysts } from '../lib/registry.mjs';
+import { parseFrontmatter, loadAnalysts, selectAnalysts, stageAnalystMaterial } from '../lib/registry.mjs';
 
 const DOC = `---
 name: gate-integrity
@@ -120,4 +120,70 @@ test('selectAnalysts nimmt always immer und paths nur bei Treffer', () => {
   const { selected, skipped } = selectAnalysts(analysts, ['src/A.java', 'README.md']);
   assert.deepEqual(selected.map((a) => a.name).sort(), ['core', 'java']);
   assert.deepEqual(skipped, [{ name: 'wf', reason: 'kein Pfad im Diff passt auf .github/workflows/**' }]);
+});
+
+// --- stageAnalystMaterial: Kontrakt und Analysten wandern ins Bundle ---
+//
+// Der Dispatch-Prompt je Analyst bestand aus Kontrakt + Blickrichtung inline,
+// zusammen ~4000 Tokens, die das orchestrierende Modell je Start als Output
+// generieren musste — gemessen ~60 s pro Analyst, die Starts lagen also Minuten
+// auseinander statt parallel. Mit den Dateien im Bundle traegt der Prompt nur
+// noch Pfade, und die Invariante "Analysten lesen ausschliesslich im Bundle"
+// bleibt exakt erhalten.
+
+function makeBundleDir() {
+  return mkdtempSync(join(tmpdir(), 'prr-stage-'));
+}
+
+function makeContract() {
+  const dir = mkdtempSync(join(tmpdir(), 'prr-contract-'));
+  const path = join(dir, 'analyst-contract.md');
+  writeFileSync(path, '# Analysten-Kontrakt\nRegeln.\n');
+  return path;
+}
+
+test('stageAnalystMaterial kopiert Kontrakt und Analysten wortgleich ins Bundle', () => {
+  const root = makeRoot({
+    'core.md': ALWAYS('core', 'Kern'),
+    'java.md': '---\nname: java\ntitle: Java\nwhen: paths\npaths: ["**/*.java"]\nseverity_max: major\n---\nBody java\n',
+    'README.md': 'kein Analyst, kein Frontmatter\n',
+  });
+  const bundleDir = makeBundleDir();
+  const { analysts } = stageAnalystMaterial({ bundleDir, contractPath: makeContract(), roots: [root] });
+
+  assert.deepEqual(analysts, ['core', 'java']);
+  assert.equal(readFileSync(join(bundleDir, 'analyst-contract.md'), 'utf8'), '# Analysten-Kontrakt\nRegeln.\n');
+  // Wortgleich MIT Frontmatter: Phase 1 der SKILL liest die Auswahlfelder aus dem Bundle.
+  assert.equal(readFileSync(join(bundleDir, 'analysts', 'core.md'), 'utf8'), ALWAYS('core', 'Kern'));
+  assert.ok(!existsSync(join(bundleDir, 'analysts', 'README.md')));
+});
+
+test('stageAnalystMaterial: repo-Analyst gewinnt bei Namensgleichheit auch im Bundle', () => {
+  const plugin = makeRoot({ 'core.md': ALWAYS('core', 'Kern') });
+  const repo = makeRoot({ 'core.md': '---\nname: core\ntitle: Kern (Repo)\nwhen: always\nseverity_max: minor\n---\nRepo-Fassung\n' });
+  const bundleDir = makeBundleDir();
+  stageAnalystMaterial({ bundleDir, contractPath: makeContract(), roots: [plugin, repo] });
+  assert.match(readFileSync(join(bundleDir, 'analysts', 'core.md'), 'utf8'), /Repo-Fassung/);
+});
+
+test('stageAnalystMaterial raeumt Analysten des Vorlaufs weg', () => {
+  // Dasselbe Argument wie bei findings/: der Zweitlauf holt in DASSELBE
+  // Bundle-Verzeichnis. Ein inzwischen entfernter Analyst bliebe sonst liegen und
+  // wuerde weiter dispatcht.
+  const bundleDir = makeBundleDir();
+  mkdirSync(join(bundleDir, 'analysts'), { recursive: true });
+  writeFileSync(join(bundleDir, 'analysts', 'stale.md'), ALWAYS('stale', 'Alt'));
+  stageAnalystMaterial({ bundleDir, contractPath: makeContract(), roots: [makeRoot({ 'core.md': ALWAYS('core', 'Kern') })] });
+  assert.ok(!existsSync(join(bundleDir, 'analysts', 'stale.md')));
+  assert.ok(existsSync(join(bundleDir, 'analysts', 'core.md')));
+});
+
+test('stageAnalystMaterial scheitert laut, wenn der Kontrakt fehlt', () => {
+  // Ein Bundle ohne Kontrakt erzeugte neun Analysten, die ihre Regeln nicht finden —
+  // jeder Lauf endete mit "alle Analysten ausgefallen", ohne die Ursache zu nennen.
+  const bundleDir = makeBundleDir();
+  assert.throws(
+    () => stageAnalystMaterial({ bundleDir, contractPath: '/nicht/da/analyst-contract.md', roots: [makeRoot({ 'core.md': ALWAYS('core', 'Kern') })] }),
+    /analyst-contract/,
+  );
 });

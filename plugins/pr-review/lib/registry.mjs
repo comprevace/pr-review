@@ -1,4 +1,4 @@
-import { readdirSync, readFileSync, existsSync } from 'node:fs';
+import { readdirSync, readFileSync, existsSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { join, basename } from 'node:path';
 import { matchesGlob } from 'node:path';
 
@@ -107,6 +107,35 @@ export function loadAnalysts(roots) {
     }
   });
   return [...byName.values()];
+}
+
+// Kontrakt und Analystendateien wandern beim fetch INS Bundle. Der Grund ist die
+// Startlatenz des Dispatchs: inline bestand der Auftrag je Analyst aus Kontrakt +
+// Blickrichtung, zusammen ~4000 Tokens, die das orchestrierende Modell fuer jeden
+// Start einzeln als Output generieren musste — gemessen ~60 s pro Analyst. Die Starts
+// lagen damit Minuten auseinander, obwohl die Subagenten selbst parallel laufen.
+// Mit den Dateien im Bundle traegt der Auftrag nur noch Pfade, alle Starts liegen
+// innerhalb von Sekunden — und die Invariante "Analysten lesen ausschliesslich im
+// Bundle" bleibt woertlich erhalten, statt fuer Plugin-Pfade aufgeweicht zu werden.
+//
+// Kopiert wird die Originaldatei MIT Frontmatter: Phase 1 der SKILL liest die
+// Auswahlfelder (when, paths, model) jetzt aus dem Bundle statt aus zwei
+// Verzeichnissen. analysts/ wird vorher geleert — dasselbe Argument wie bei
+// findings/ in bundle.mjs: der Zweitlauf holt in DASSELBE Verzeichnis, und ein
+// inzwischen entfernter Analyst bliebe sonst liegen und wuerde weiter dispatcht.
+export function stageAnalystMaterial({ bundleDir, contractPath, roots }) {
+  if (!existsSync(contractPath)) {
+    throw new Error(`analyst-contract.md nicht gefunden unter ${contractPath}. Ohne Kontrakt kein Dispatch.`);
+  }
+  const analysts = loadAnalysts(roots);
+  const dir = join(bundleDir, 'analysts');
+  rmSync(dir, { recursive: true, force: true });
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(join(bundleDir, 'analyst-contract.md'), readFileSync(contractPath, 'utf8'));
+  for (const analyst of analysts) {
+    writeFileSync(join(dir, `${analyst.name}.md`), readFileSync(analyst.file, 'utf8'));
+  }
+  return { analysts: analysts.map((a) => a.name).sort() };
 }
 
 export function selectAnalysts(analysts, changedPaths) {

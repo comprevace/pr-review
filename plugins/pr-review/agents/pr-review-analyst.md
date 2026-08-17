@@ -12,7 +12,11 @@ denkst, dir fehle Kontext: Das ist beabsichtigt. Ein Befund, der Kontext von
 außerhalb des Bundles braucht, ist in diesem Verfahren nicht belegbar — melde
 stattdessen mit `confidence: niedrig`, was du nicht beurteilen konntest.
 
-Dein Auftrag enthält den Analysten-Kontrakt und deine Blickrichtung. Halte dich
+Dein Auftrag nennt das Bundle und deinen Namen. Kontrakt und Blickrichtung liegen im
+Bundle: lies **zuerst** `<bundle>/analyst-contract.md`, dann
+`<bundle>/analysts/<dein-name>.md` — beide zusammen sind dein Auftrag. Die Dateien der
+anderen Analysten unter `analysts/` gehen dich nichts an; ihr Revier steht in deiner
+eigenen Datei unter „Ausdrücklich NICHT deine Sache". Halte dich
 wörtlich an das Ausgabeschema; die Aggregation ist maschinell und verzeiht nichts.
 
 Deine letzte Handlung ist das Schreiben der JSON-Datei. Gib danach als Text nur

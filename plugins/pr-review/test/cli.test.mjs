@@ -173,3 +173,22 @@ test('der Zweitlauf postet einen Rueckfall, nennt ihn und traegt commit_id und V
   assert.match(sent.body, /Verworfen: 1/);
   assert.match(sent.body, /Evidenz im Bundle nicht auffindbar/);
 });
+
+test('post kennt die Analysten aus dem Bundle, nicht den heutigen Verzeichnisstand', () => {
+  // fetch legt die dispatchten Analysten ins Bundle. Die Bilanz muss GENAU diese
+  // kennen: ein Analyst, der seit dem fetch aus dem Plugin entfernt wurde, waere
+  // sonst aus der Ausfallliste verschwunden -- und einer, der seitdem dazukam,
+  // stuende als ausgefallen da, obwohl ihn niemand dispatcht hat.
+  const dir = freshBundle('prr-cli-bundle-analysts-');
+  const frontmatter = (name) => `---\nname: ${name}\ntitle: ${name}\nwhen: always\nseverity_max: major\n---\nBody\n`;
+  mkdirSync(join(dir, 'analysts'), { recursive: true });
+  for (const name of ['gate-integrity', 'spec-fidelity', 'ghost']) {
+    writeFileSync(join(dir, 'analysts', `${name}.md`), frontmatter(name));
+  }
+  runCli(['post', '--bundle', dir, '--dry-run']);
+  const body = payloadOf(dir).body;
+  // ghost steht im Bundle, hat aber keine Findings-Datei -> ausgefallen.
+  assert.match(body, /ghost/);
+  // Die Plugin-Analysten von HEUTE sind fuer dieses Bundle ohne Bedeutung.
+  assert.doesNotMatch(body, /consistency/);
+});
