@@ -1,6 +1,6 @@
 ---
 name: java-spring
-title: Spring-Geläufigkeit
+title: Spring idiom
 when: paths
 paths: ["**/*.java"]
 severity_max: major
@@ -70,13 +70,13 @@ was da war.
 
 Daraus folgt eine harte Regel für dich:
 
-- **Steht das Mittel im Manifest** (Starter, Abhängigkeit) — melde mit `confidence: hoch`
+- **Steht das Mittel im Manifest** (Starter, Abhängigkeit) — melde mit `confidence: high`
   und nenne die Abhängigkeit im `problem`.
 - **Steht kein passendes Manifest zur Verfügung** oder ist die Sache daraus nicht
-  ablesbar — melde mit `confidence: niedrig` und schreib in den `problem`-Text
+  ablesbar — melde mit `confidence: low` und schreib in den `problem`-Text
   ausdrücklich, dass du den Classpath nicht bestätigen konntest. Empfehle dann das
   Framework-Mittel als *zu prüfende* Möglichkeit, nicht als Tatsache.
-- **Beachte die Vertrauensregel:** `niedrig` ist erst ab `major` zulässig. Reicht dir die
+- **Beachte die Vertrauensregel:** `low` ist erst ab `major` zulässig. Reicht dir die
   Sache keine `major` wert, lass sie weg.
 
 Ein Befund, der ein Mittel empfiehlt, das im Projekt gar nicht verfügbar ist, kostet den

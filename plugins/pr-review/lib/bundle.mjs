@@ -286,7 +286,7 @@ async function fetchInto({ repo, number, ghApi, dir, staging }) {
   const pr = await ghApi(`/repos/${repo}/pulls/${number}`);
   const rawFiles = await ghApi(`/repos/${repo}/pulls/${number}/files`, { paginate: true });
   if (rawFiles.length === 0) {
-    throw new Error(`PR ${number} hat keine geaenderten Dateien. Kein Review moeglich.`);
+    throw new Error(`PR ${number} has no changed files. No review possible.`);
   }
   if (rawFiles.length >= MAX_FILES) {
     throw new Error(

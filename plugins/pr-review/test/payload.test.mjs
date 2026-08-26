@@ -11,7 +11,7 @@ const c = (over) => ({
   file: 'src/A.java', side: 'RIGHT', line: 12, start_line: null,
   severity: 'major', baseSeverity: 'major', escalated: false, tension: false,
   analysts: ['gi'], id: 'aaaaaa',
-  items: [{ analyst: 'gi', analystTitle: 'Gate', title: 't', problem: 'p', evidence: 'e', fix: 'f', confidence: 'hoch' }],
+  items: [{ analyst: 'gi', analystTitle: 'Gate', title: 't', problem: 'p', evidence: 'e', fix: 'f', confidence: 'high' }],
   ...over,
 });
 

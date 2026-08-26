@@ -1,6 +1,6 @@
 ---
 name: spec-fidelity
-title: Spec-Treue
+title: Spec fidelity
 when: always
 severity_max: major
 ---

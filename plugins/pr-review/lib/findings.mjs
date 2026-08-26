@@ -1,10 +1,10 @@
 export const SEVERITIES = ['info', 'minor', 'major', 'blocker'];
-export const CONFIDENCES = ['hoch', 'mittel', 'niedrig'];
+export const CONFIDENCES = ['high', 'medium', 'low'];
 const MAX_EVIDENCE = 200;
 
 export function severityRank(s) {
   const i = SEVERITIES.indexOf(s);
-  if (i < 0) throw new Error(`Unbekannte Severity: ${s}`);
+  if (i < 0) throw new Error(`Unknown severity: ${s}`);
   return i;
 }
 
@@ -28,30 +28,30 @@ function reject(reason) {
 
 export function validateFinding(raw, ctx) {
   const analyst = ctx.analysts.get(raw.analyst);
-  if (!analyst) return reject(`unbekannter Analyst "${raw.analyst}"`);
+  if (!analyst) return reject(`unknown analyst "${raw.analyst}"`);
 
   for (const key of ['file', 'title', 'problem', 'evidence', 'fix']) {
-    if (typeof raw[key] !== 'string' || raw[key].trim() === '') return reject(`Pflichtfeld "${key}" fehlt oder leer`);
+    if (typeof raw[key] !== 'string' || raw[key].trim() === '') return reject(`required field "${key}" missing or empty`);
   }
-  if (!ctx.knownFiles.has(raw.file)) return reject(`Datei "${raw.file}" ist nicht im Diff`);
-  if (!Number.isInteger(raw.line) || raw.line < 1) return reject('Feld "line" muss eine positive Ganzzahl sein');
+  if (!ctx.knownFiles.has(raw.file)) return reject(`file "${raw.file}" is not in the diff`);
+  if (!Number.isInteger(raw.line) || raw.line < 1) return reject('field "line" must be a positive integer');
 
   const side = raw.side ?? 'RIGHT';
-  if (side !== 'RIGHT' && side !== 'LEFT') return reject(`Feld "side" muss RIGHT oder LEFT sein, war "${side}"`);
+  if (side !== 'RIGHT' && side !== 'LEFT') return reject(`field "side" must be RIGHT or LEFT, was "${side}"`);
 
   let startLine = null;
   if (raw.start_line !== undefined && raw.start_line !== null) {
-    if (!Number.isInteger(raw.start_line) || raw.start_line < 1) return reject('Feld "start_line" muss eine positive Ganzzahl sein');
-    if (raw.start_line > raw.line) return reject('start_line liegt hinter line');
+    if (!Number.isInteger(raw.start_line) || raw.start_line < 1) return reject('field "start_line" must be a positive integer');
+    if (raw.start_line > raw.line) return reject('start_line is beyond line');
     startLine = raw.start_line === raw.line ? null : raw.start_line;
   }
 
-  if (!SEVERITIES.includes(raw.severity)) return reject(`unbekannte Severity "${raw.severity}"`);
-  const confidence = raw.confidence ?? 'mittel';
-  if (!CONFIDENCES.includes(confidence)) return reject(`unbekanntes Vertrauen "${confidence}"`);
+  if (!SEVERITIES.includes(raw.severity)) return reject(`unknown severity "${raw.severity}"`);
+  const confidence = raw.confidence ?? 'medium';
+  if (!CONFIDENCES.includes(confidence)) return reject(`unknown confidence "${confidence}"`);
 
-  if (/\r?\n/.test(raw.evidence)) return reject('Evidenz muss einzeilig sein');
-  if (raw.evidence.length > MAX_EVIDENCE) return reject(`Evidenz laenger als ${MAX_EVIDENCE} Zeichen`);
+  if (/\r?\n/.test(raw.evidence)) return reject('evidence must be a single line');
+  if (raw.evidence.length > MAX_EVIDENCE) return reject(`evidence longer than ${MAX_EVIDENCE} characters`);
 
   // Zeilenweise suchen, nicht im normalisierten Gesamttext. Kollabiert man den
   // ganzen Haystack auf eine Zeile, kann eine einzeilige Evidenz ueber eine
@@ -64,7 +64,7 @@ export function validateFinding(raw, ctx) {
   const needle = normalizeForSearch(raw.evidence);
   const haystack = String(ctx.haystacks.get(raw.file) ?? '');
   const evidenceFound = haystack.split('\n').some((line) => normalizeForSearch(line).includes(needle));
-  if (!evidenceFound) return reject('Evidenz im Bundle nicht auffindbar');
+  if (!evidenceFound) return reject('evidence not found in the bundle');
 
   const severity = clampSeverity(raw.severity, analyst.severity_max);
   // Geprueft wird die GEMELDETE Severity, nicht die gedeckelte. Sonst haengt die
@@ -73,8 +73,8 @@ export function validateFinding(raw, ctx) {
   // waere fuer diesen Analysten auf JEDER Stufe unbenutzbar, auch wenn er einen
   // schwerwiegenden Verdacht gemeldet hat. Der Deckel begrenzt, wie laut ein Befund
   // sein darf; er soll nicht entscheiden, ob er ueberhaupt zaehlt.
-  if (confidence === 'niedrig' && severityRank(raw.severity) <= severityRank('minor')) {
-    return reject('niedriges Vertrauen bei geringer Severity');
+  if (confidence === 'low' && severityRank(raw.severity) <= severityRank('minor')) {
+    return reject('low confidence on low severity');
   }
 
   return {
@@ -103,7 +103,7 @@ export function validateAll(rawByAnalyst, ctx) {
     for (const item of items ?? []) {
       const result = validateFinding({ ...item, analyst: analystName }, ctx);
       if (result.ok) accepted.push(result.finding);
-      else rejected.push({ analyst: analystName, title: item?.title ?? '(ohne Titel)', reason: result.reason });
+      else rejected.push({ analyst: analystName, title: item?.title ?? '(untitled)', reason: result.reason });
     }
   }
   return { accepted, rejected };

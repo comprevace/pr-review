@@ -128,7 +128,7 @@ test('vue-ts prueft die Vue-Version, bevor es ein Mittel empfiehlt', () => {
   const body = byName.get('vue-ts').body;
   assert.match(body, /manifests\//, 'muss package.json als Quelle benennen');
   assert.match(body, /Version/, 'muss die Versionsabhaengigkeit benennen');
-  assert.match(body, /niedrig/, 'muss den Weg ueber gesenktes Vertrauen benennen');
+  assert.match(body, /confidence: low/, 'muss den Weg ueber gesenktes Vertrauen benennen');
 });
 
 test('vue-ts ueberlaesst dem Linter, was der Linter kann', () => {
@@ -159,7 +159,7 @@ test('java-spring sagt, was er ohne Manifest nicht wissen kann', () => {
   const body = byName.get('java-spring').body;
   assert.match(body, /manifests\//, 'muss die Manifestdatei als Quelle benennen');
   assert.match(body, /Classpath|classpath/, 'muss den Classpath-Vorbehalt benennen');
-  assert.match(body, /niedrig/, 'muss den Weg ueber gesenktes Vertrauen benennen');
+  assert.match(body, /confidence: low/, 'muss den Weg ueber gesenktes Vertrauen benennen');
 });
 
 test('java-spring grenzt sich gegen consistency und die deterministischen Werkzeuge ab', () => {
@@ -180,7 +180,7 @@ test('rationale lehrt keine Severity-Luege, um niedriges Vertrauen durchzubekomm
   // Severity-Leiter fuer alle entwerten. Der Prompt muss den Weg benennen UND verbieten.
   const byName = new Map(loadAnalysts([join(ROOT, 'analysts')]).map((a) => [a.name, a]));
   const body = byName.get('rationale').body;
-  assert.match(body, /niedrig/, 'muss die Vertrauensregel ansprechen');
+  assert.match(body, /confidence: low/, 'muss die Vertrauensregel ansprechen');
   assert.match(body, /schweig|weglassen|nicht melden/i, 'muss Schweigen als Ausweg nennen');
   assert.match(body, /Severity-Lüge|Severity-Luege|nicht.*aufblasen|nicht.*höher melden/i,
     'muss das Aufblaeen der Severity ausdruecklich verbieten');
@@ -345,7 +345,7 @@ test('security-context verlangt Zurueckhaltung, wo die Kontextgrenze urteilt', (
   // das Konzept vermeiden will. Er muss also sagen duerfen, was er nicht sehen konnte.
   const byName = new Map(loadAnalysts([join(ROOT, 'analysts')]).map((a) => [a.name, a]));
   const body = byName.get('security-context').body;
-  assert.match(body, /niedrig/, 'muss den Weg ueber confidence: niedrig benennen');
+  assert.match(body, /confidence: low/, 'muss den Weg ueber confidence: niedrig benennen');
   assert.match(body, /zentral|Interceptor|Filterkette|an anderer Stelle/i,
     'muss den Fall der anderswo erzwungenen Kontrolle behandeln');
 });

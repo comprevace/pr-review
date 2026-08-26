@@ -1,6 +1,6 @@
 ---
 name: consistency
-title: Stimmigkeit
+title: Consistency
 when: always
 severity_max: major
 ---

@@ -20,7 +20,7 @@ const ctx = { haystacks, analystTitles };
 const f = (over) => ({
   analyst: 'gi', file: 'src/A.java', line: 10, start_line: null, side: 'RIGHT',
   severity: 'major', baseSeverity: 'major', title: 't', problem: 'p',
-  evidence: '@Disabled("flaky")', fix: 'x', confidence: 'hoch', ...over,
+  evidence: '@Disabled("flaky")', fix: 'x', confidence: 'high', ...over,
 });
 
 // Wichtig fuer die Cluster-Tests: problem und fix muessen sich unterscheiden. Zwei

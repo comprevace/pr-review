@@ -124,7 +124,7 @@ export function renderComment(cluster) {
 
   const parts = [`**${icon} ${cluster.severity}** · ${tags}`];
   if (cluster.escalated) {
-    parts.push(`<sub>von ${cluster.baseSeverity} erhöht: zwei unabhängige Analysten</sub>`);
+    parts.push(`<sub>raised from ${cluster.baseSeverity}: two independent analysts</sub>`);
   }
   parts.push('');
 
@@ -134,18 +134,18 @@ export function renderComment(cluster) {
     parts.push('');
     parts.push(`> \`${item.evidence}\``);
     parts.push('');
-    parts.push(`**Auftrag:** ${item.fix}`);
+    parts.push(`**Action:** ${item.fix}`);
     parts.push('');
   }
 
   if (cluster.tension) {
-    parts.push('<sub>⚠ Hier treffen zwei Blickrichtungen aufeinander; die Aufträge können sich widersprechen. Bitte selbst entscheiden.</sub>');
+    parts.push('<sub>⚠ Two review perspectives meet here; their actions may contradict each other. Decide for yourself.</sub>');
   }
 
-  const confidence = cluster.items.some((i) => i.confidence === 'niedrig')
-    ? 'niedrig'
-    : cluster.items.some((i) => i.confidence === 'mittel') ? 'mittel' : 'hoch';
-  parts.push(`<sub>Vertrauen: ${confidence}</sub>`);
+  const confidence = cluster.items.some((i) => i.confidence === 'low')
+    ? 'low'
+    : cluster.items.some((i) => i.confidence === 'medium') ? 'medium' : 'high';
+  parts.push(`<sub>Confidence: ${confidence}</sub>`);
   parts.push(renderMarker({
     id: cluster.id,
     sev: cluster.severity,

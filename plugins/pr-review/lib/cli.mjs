@@ -60,7 +60,7 @@ async function cmdFetch(positional, flags) {
   let repo = flags.repo;
   if (!repo) {
     try { repo = await currentRepo(); } catch {
-      fail('Repo nicht ermittelbar. Aus einem Repo-Verzeichnis starten oder --repo owner/name angeben.');
+      fail('Cannot determine the repository. Start from a repository directory or pass --repo owner/name.');
     }
   }
   const summary = await buildBundle({ repo, number, ghApi });
@@ -258,7 +258,7 @@ async function resolveTarget(positional, flags, command) {
   let repo = flags.repo;
   if (!repo) {
     try { repo = await currentRepo(); } catch {
-      fail('Repo nicht ermittelbar. Aus einem Repo-Verzeichnis starten oder --repo owner/name angeben.');
+      fail('Cannot determine the repository. Start from a repository directory or pass --repo owner/name.');
     }
   }
   return { repo, number, bundleDir: bundlePathFor(repo, number) };
@@ -275,7 +275,7 @@ async function cmdPost(positional, flags) {
   const { raw, failed: jsonFailed } = readAnalystFindings(bundleDir);
   const declaredFailed = [...jsonFailed, ...parseFailed(flags.failed)];
   if (raw.size === 0 && declaredFailed.length === 0) {
-    fail('Keine Analysten-Findings im Bundle. Die Subagenten haben nichts nach findings/ geschrieben.');
+    fail('No analyst findings in the bundle. The subagents wrote nothing to findings/.');
   }
   if (raw.size === 0) {
     fail(`Alle Analysten sind ausgefallen: ${declaredFailed.map((f) => `${f.name} (${f.reason})`).join(', ')}. Kein Review gepostet.`);
@@ -341,7 +341,7 @@ async function cmdVerify(positional, flags) {
   const analysts = loadAnalysts(analystRootsFor(bundleDir, flags));
   const { raw, failed: jsonFailed } = readAnalystFindings(bundleDir);
   const declaredFailed = [...jsonFailed, ...parseFailed(flags.failed)];
-  if (raw.size === 0) fail('Keine Analysten-Findings im Bundle. Kein Zweitlauf moeglich.');
+  if (raw.size === 0) fail('No analyst findings in the bundle. No second pass possible.');
 
   const skipped = parseSkipped(flags.skipped);
   // Im Zweitlauf ist ein unentdeckter Ausfall noch teurer als im Erstlauf: seine

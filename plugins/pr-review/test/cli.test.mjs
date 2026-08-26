@@ -55,7 +55,7 @@ test('ein Analyst ohne Datei und ohne Meldung wird von der CLI selbst benannt', 
   rmSync(join(dir, 'findings/spec-fidelity.json'));
   runCli(['post', '--bundle', dir, '--dry-run']);
   const body = payloadOf(dir).body;
-  assert.match(body, /ausgefallen — spec-fidelity/);
+  assert.match(body, /failed — spec-fidelity/);
   assert.match(body, /keine Findings-Datei geschrieben/);
 
   // Gemeldet ist gemeldet: dann steht der brauchbare Grund da und kein Ausfall.
@@ -63,8 +63,8 @@ test('ein Analyst ohne Datei und ohne Meldung wird von der CLI selbst benannt', 
   rmSync(join(declared, 'findings/spec-fidelity.json'));
   runCli(['post', '--bundle', declared, '--dry-run', '--skipped', 'spec-fidelity:im Tuning-Modus nicht gestartet']);
   const declaredBody = payloadOf(declared).body;
-  assert.doesNotMatch(declaredBody, /ausgefallen — spec-fidelity/);
-  assert.match(declaredBody, /nicht gestartet — spec-fidelity: im Tuning-Modus nicht gestartet/);
+  assert.doesNotMatch(declaredBody, /failed — spec-fidelity/);
+  assert.match(declaredBody, /not started — spec-fidelity: im Tuning-Modus nicht gestartet/);
 });
 
 test('run.log haelt jeden Lauf fest — das MaRisk-Artefakt aus dem Design existiert', () => {
@@ -169,9 +169,9 @@ test('der Zweitlauf postet einen Rueckfall, nennt ihn und traegt commit_id und V
     'der zurueckgekehrte Befund steht nicht unter den gesetzten Kommentaren',
   );
   assert.ok(sent.comments.every((c) => c.path === 'src/A.java'));
-  assert.match(sent.body, /Rückfall: 1 Befund war/);
-  assert.match(sent.body, /Verworfen: 1/);
-  assert.match(sent.body, /Evidenz im Bundle nicht auffindbar/);
+  assert.match(sent.body, /Regression: 1 finding was/);
+  assert.match(sent.body, /Discarded: 1/);
+  assert.match(sent.body, /evidence not found in the bundle/);
 });
 
 test('post kennt die Analysten aus dem Bundle, nicht den heutigen Verzeichnisstand', () => {

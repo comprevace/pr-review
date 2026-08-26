@@ -17,11 +17,11 @@ export function renderSummary(input) {
     rejected, anchorless, capped, skippedExisting, verify, meta, overlap,
   } = input;
 
-  const out = ['## PR-Review — Bilanz', ''];
+  const out = ['## PR review — summary', ''];
 
   if (verify) {
     out.push(
-      `**Zweitlauf:** ${verify.resolved} behoben · ${verify.stillOpen} weiterhin offen · ${verify.fresh} neu`,
+      `**Second pass:** ${verify.resolved} fixed · ${verify.stillOpen} still open · ${verify.fresh} new`,
       '',
     );
     // Eigene, fette Zeile statt eines vierten Postens in der Aufzaehlung oben: ein
@@ -32,9 +32,9 @@ export function renderSummary(input) {
     const regressed = verify.regressed ?? 0;
     if (regressed > 0) {
       out.push(
-        `**⚠ Rückfall: ${regressed} ${regressed === 1 ? 'Befund war' : 'Befunde waren'} schon einmal als behoben ` +
-          `aufgelöst und ${regressed === 1 ? 'ist' : 'sind'} wieder da.** Der alte Thread bleibt aufgelöst; ` +
-          'der Befund steht erneut als Kommentar am Code.',
+        `**⚠ Regression: ${regressed} ${regressed === 1 ? 'finding was' : 'findings were'} already resolved as ` +
+          `fixed and ${regressed === 1 ? 'is' : 'are'} back.** The old thread stays resolved; ` +
+          'the finding is posted again as a comment on the code.',
         '',
       );
     }
@@ -43,38 +43,38 @@ export function renderSummary(input) {
   const found = SEVERITIES.slice().reverse()
     .filter((s) => (counts[s] ?? 0) > 0)
     .map((s) => `${SEVERITY_ICON[s]} ${s}: ${counts[s]}`);
-  out.push('**Befunde:** ' + (found.length ? found.join(' · ') : 'keine'), '');
+  out.push('**Findings:** ' + (found.length ? found.join(' · ') : 'none'), '');
 
-  out.push('**Analysten**', '');
+  out.push('**Analysts**', '');
   out.push(bullet([
-    `gelaufen: ${analystsRun.join(', ') || 'keine'}`,
-    ...analystsSkipped.map((a) => `nicht gestartet — ${a.name}: ${a.reason}`),
-    ...analystsFailed.map((a) => `**ausgefallen — ${a.name}: ${a.reason}**`),
+    `ran: ${analystsRun.join(', ') || 'none'}`,
+    ...analystsSkipped.map((a) => `not started — ${a.name}: ${a.reason}`),
+    ...analystsFailed.map((a) => `**failed — ${a.name}: ${a.reason}**`),
   ]), '');
 
   if (rejected.length > 0) {
-    out.push(`**Verworfen: ${rejected.length}**`, '');
+    out.push(`**Discarded: ${rejected.length}**`, '');
     out.push(bullet(groupReasons(rejected).map(([reason, n]) => `${n}× ${reason}`)), '');
   }
 
   if (anchorless.length > 0) {
-    out.push(`**Ohne Ankerpunkt: ${anchorless.length}**`, '');
-    out.push('Diese Zeilen liegen außerhalb des Diffs und können nicht inline kommentiert werden.', '');
+    out.push(`**Without an anchor: ${anchorless.length}**`, '');
+    out.push('These lines lie outside the diff and cannot be commented on inline.', '');
     out.push(bullet(anchorless.map((c) => `\`${c.file}:${c.line}\` — ${c.items[0]?.title ?? ''} (${c.severity})`)), '');
   }
 
   if (capped.length > 0) {
-    out.push(`**Gekappt: ${capped.length}**`, '');
+    out.push(`**Capped: ${capped.length}**`, '');
     out.push(
-      'Es wurden die schwersten Befunde gepostet. Diese Zahl heißt meistens: **der PR ist zu groß** — ' +
-      'eine Story, ein PR macht ihn wieder reviewbar.',
+      'The most severe findings were posted. This number usually means: **the PR is too large** — ' +
+      'one story, one PR makes it reviewable again.',
       '',
     );
     out.push(bullet(capped.map((c) => `\`${c.file}:${c.line}\` — ${c.items[0]?.title ?? ''} (${c.severity})`)), '');
   }
 
   if (skippedExisting.length > 0) {
-    out.push(`**Bereits kommentiert: ${skippedExisting.length}** (nicht erneut gesetzt)`, '');
+    out.push(`**Already commented: ${skippedExisting.length}** (not posted again)`, '');
   }
 
   // Der Block, an dem sich das Roster nachschaerfen laesst. Er steht bewusst mit dem
@@ -83,22 +83,22 @@ export function renderSummary(input) {
   // Reviergrenze, die nicht trennt.
   if (overlap?.clusters > 0) {
     out.push(
-      `**Mehrfachbefunde:** ${overlap.clusters} Cluster mit mehr als einem Analysten, `
-      + `davon ${overlap.escalated} in der Severity erhöht`,
+      `**Overlapping findings:** ${overlap.clusters} clusters with more than one analyst, `
+      + `${overlap.escalated} of them raised in severity`,
       '',
       bullet(overlap.pairs.map((p) => `\`${p.pair}\` — ${p.count}×`)),
       '',
-      '<sub>Ein Paar, das häufig gemeinsam auftaucht, zeigt eher eine unscharfe '
-      + 'Reviergrenze als echte Mehrfachbetroffenheit.</sub>',
+      '<sub>A pair that shows up together often points to a blurred territory '
+      + 'boundary rather than to something genuinely hit from two sides.</sub>',
       '',
     );
   }
 
   const gaps = [];
-  if (meta?.spec_missing) gaps.push('Keine Spec-Datei auffindbar — Spec-Treue konnte nicht gegen Akzeptanzkriterien prüfen.');
-  if (meta?.conventions_missing) gaps.push('Kein `CLAUDE.md` im Repo — Konventionsprüfung fiel weg.');
+  if (meta?.spec_missing) gaps.push('No spec file found — spec fidelity could not check against acceptance criteria.');
+  if (meta?.conventions_missing) gaps.push('No `CLAUDE.md` in the repository — the conventions check was skipped.');
   if (meta?.missing_tests?.length) {
-    gaps.push(`Ohne zugehörige Testdatei: ${meta.missing_tests.map((f) => `\`${f}\``).join(', ')}`);
+    gaps.push(`Without a corresponding test file: ${meta.missing_tests.map((f) => `\`${f}\``).join(', ')}`);
   }
   // Eine gekappte Nachbarschaft aendert, wie die Bilanz zu lesen ist: Stimmigkeit hat
   // dort nur einen Ausschnitt des Verzeichnisses gesehen, und "kein Musterbruch" ist dann
@@ -106,27 +106,27 @@ export function renderSummary(input) {
   // die Bilanz liest.
   if (meta?.siblings_truncated?.length) {
     gaps.push(
-      `Nachbarschaft gekappt in: ${meta.siblings_truncated.map((d) => `\`${d}\``).join(', ')} — `
-      + 'Stimmigkeit sah dort nur einen Ausschnitt des Verzeichnisses.',
+      `Neighbourhood capped in: ${meta.siblings_truncated.map((d) => `\`${d}\``).join(', ')} — `
+      + 'consistency saw only part of those directories.',
     );
   }
   if (gaps.length > 0) {
-    out.push('**Lücken in der Eingabe**', '', bullet(gaps), '');
+    out.push('**Gaps in the input**', '', bullet(gaps), '');
   }
 
   out.push(
-    '**Osmani-Test** — die drei Fragen, die ein Merge beantworten muss:',
+    '**Osmani test** — the three questions a merge has to answer:',
     '',
-    '1. Was hat sich geändert?',
-    '2. Warum ist es sicher?',
-    '3. Was passiert, wenn wir uns irren?',
+    '1. What changed?',
+    '2. Why is it safe?',
+    '3. What happens if we are wrong?',
     '',
-    'Dieses Review beantwortet sie nicht. Es liefert Material dafür.',
+    'This review does not answer them. It supplies the material for doing so.',
     '',
     '---',
     '',
-    `<sub>Dies ist ein **Signal, kein Gate**. Es erfolgt kein Approve und kein Merge-Einfluss. ` +
-      `pr-review ${pluginVersion} · Analysten: ${analystsRun.join(', ') || 'keine'}</sub>`,
+    `<sub>This is a **signal, not a gate**. No approval is given and no merge is influenced. ` +
+      `pr-review ${pluginVersion} · analysts: ${analystsRun.join(', ') || 'none'}</sub>`,
   );
 
   return out.filter((line) => line !== undefined).join('\n').replace(/\n{3,}/g, '\n\n');

@@ -9,20 +9,20 @@ const SEVERITIES = new Set(['info', 'minor', 'major', 'blocker']);
 
 export function parseFrontmatter(text) {
   const m = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/.exec(text);
-  if (!m) throw new Error('Frontmatter fehlt oder ist nicht abgeschlossen (--- ... ---)');
+  if (!m) throw new Error('Frontmatter is missing or unterminated (--- ... ---)');
   const meta = {};
   for (const raw of m[1].split(/\r?\n/)) {
     const line = raw.trim();
     if (line === '' || line.startsWith('#')) continue;
     const kv = /^([A-Za-z_][A-Za-z0-9_]*):\s*(.*)$/.exec(line);
-    if (!kv) throw new Error(`Frontmatter-Zeile nicht lesbar: ${line}`);
+    if (!kv) throw new Error(`Frontmatter line not readable: ${line}`);
     const [, key, valueRaw] = kv;
     if (!ALLOWED.has(key)) {
       throw new Error(`Unbekannter Frontmatter-Schluessel "${key}". Erlaubt: ${[...ALLOWED].join(', ')}`);
     }
     const value = valueRaw.trim();
     if (value.startsWith('[')) {
-      if (!value.endsWith(']')) throw new Error(`Array bei "${key}" nicht in einer Zeile geschlossen`);
+      if (!value.endsWith(']')) throw new Error(`array at "${key}" is not closed on one line`);
       const inner = value.slice(1, -1).trim();
       if (inner === '') {
         meta[key] = [];
@@ -34,7 +34,7 @@ export function parseFrontmatter(text) {
         // nie gestartet -- ein Fehler, der erst auffaellt, wenn jemand sich
         // fragt, warum sein Frontend-Analyst nie laeuft.
         const items = [...inner.matchAll(/(["'])(.*?)\1/g)].map((m) => m[2]).filter((s) => s !== '');
-        if (items.length === 0) throw new Error(`Array bei "${key}" hat kein lesbares Element`);
+        if (items.length === 0) throw new Error(`array at "${key}" has no readable element`);
         meta[key] = items;
       } else {
         meta[key] = inner.split(',').map((s) => s.trim()).filter((s) => s !== '');
@@ -51,16 +51,16 @@ function normalize(meta, file, source) {
     if (!meta[key]) throw new Error(`${file}: Pflichtfeld "${key}" fehlt`);
   }
   if (meta.name !== basename(file, '.md')) {
-    throw new Error(`${file}: name "${meta.name}" passt nicht zum Dateinamen`);
+    throw new Error(`${file}: name "${meta.name}" does not match the file name`);
   }
   if (meta.when !== 'always' && meta.when !== 'paths') {
-    throw new Error(`${file}: when muss "always" oder "paths" sein, war "${meta.when}"`);
+    throw new Error(`${file}: when must be "always" or "paths", was "${meta.when}"`);
   }
   if (meta.when === 'paths' && (!Array.isArray(meta.paths) || meta.paths.length === 0)) {
-    throw new Error(`${file}: when: paths braucht ein nicht-leeres paths-Array`);
+    throw new Error(`${file}: when: paths needs a non-empty paths array`);
   }
   if (!SEVERITIES.has(meta.severity_max)) {
-    throw new Error(`${file}: severity_max "${meta.severity_max}" unbekannt`);
+    throw new Error(`${file}: severity_max "${meta.severity_max}" is unknown`);
   }
   return {
     name: meta.name,
@@ -125,7 +125,7 @@ export function loadAnalysts(roots) {
 // inzwischen entfernter Analyst bliebe sonst liegen und wuerde weiter dispatcht.
 export function stageAnalystMaterial({ bundleDir, contractPath, roots }) {
   if (!existsSync(contractPath)) {
-    throw new Error(`analyst-contract.md nicht gefunden unter ${contractPath}. Ohne Kontrakt kein Dispatch.`);
+    throw new Error(`analyst-contract.md not found at ${contractPath}. No dispatch without the contract.`);
   }
   const analysts = loadAnalysts(roots);
   const dir = join(bundleDir, 'analysts');

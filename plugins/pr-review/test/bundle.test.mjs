@@ -480,10 +480,10 @@ test('Geschwister landen NICHT im Haystack — die Evidenzpflicht bleibt unanget
   const { accepted, rejected } = validateAll(new Map([['consistency', [{
     file: 'src/two.java', line: 1, side: 'RIGHT', severity: 'major',
     title: 'Zitat aus einem Geschwister', problem: 'p',
-    evidence: 'class Two { void handle() {} }', fix: 'f', confidence: 'hoch',
+    evidence: 'class Two { void handle() {} }', fix: 'f', confidence: 'high',
   }]]]), { analysts, haystacks, knownFiles: new Set(b.meta.files.map((f) => f.path)) });
   assert.equal(accepted.length, 0);
-  assert.match(rejected[0].reason, /nicht im Diff/);
+  assert.match(rejected[0].reason, /not in the diff/);
 });
 
 test('ein zweites fetch laesst kein veraltetes Geschwister stehen', async () => {
