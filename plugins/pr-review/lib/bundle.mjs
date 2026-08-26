@@ -337,7 +337,7 @@ async function fetchInto({ repo, number, ghApi, dir, staging }) {
     }
     files.push(entry);
 
-    if (f.status !== 'removed' && !f.patch_missing && f.patch) {
+    if (f.status !== 'removed' && f.patch) {
       const text = await fetchText(ghApi, repo, f.filename, headSha);
       if (text !== null) writeUnder(staging, join('files', f.filename), text);
     }
@@ -346,8 +346,10 @@ async function fetchInto({ repo, number, ghApi, dir, staging }) {
     if (candidates.length > 0) {
       let found = false;
       for (const cand of candidates) {
-        const text = changedPaths.has(cand) ? null : await fetchText(ghApi, repo, cand, headSha);
+        // A candidate the PR itself changes counts as present without being fetched:
+        // its content is already in the bundle as a changed file.
         if (changedPaths.has(cand)) { found = true; break; }
+        const text = await fetchText(ghApi, repo, cand, headSha);
         if (text !== null) {
           writeUnder(staging, join('tests', cand), text);
           found = true;
