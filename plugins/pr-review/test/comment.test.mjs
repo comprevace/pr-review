@@ -129,25 +129,25 @@ const cluster = {
   severity: 'blocker', baseSeverity: 'major', escalated: true, tension: true,
   analysts: ['gate-integrity', 'spec-fidelity'], id: 'a3f9c1',
   items: [
-    { analyst: 'gate-integrity', analystTitle: 'Gate-Integrität', title: 'Test stillgelegt',
+    { analyst: 'gate-integrity', analystTitle: 'Gate integrity', title: 'Test stillgelegt',
       problem: 'Der Test ist abgeschaltet.', evidence: '@Disabled("flaky")',
-      fix: 'Annotation entfernen.', confidence: 'hoch' },
-    { analyst: 'spec-fidelity', analystTitle: 'Spec-Treue', title: 'Kriterium 3 offen',
+      fix: 'Annotation entfernen.', confidence: 'high' },
+    { analyst: 'spec-fidelity', analystTitle: 'Spec fidelity', title: 'Kriterium 3 offen',
       problem: 'Akzeptanzkriterium 3 ist nicht abgedeckt.', evidence: 'assertTrue(true);',
-      fix: 'Zeitgrenze pruefen.', confidence: 'mittel' },
+      fix: 'Zeitgrenze pruefen.', confidence: 'medium' },
   ],
 };
 
 test('renderComment zeigt Severity, Tags, Eskalationsgrund und beide Auftraege', () => {
   const body = renderComment(cluster);
   assert.match(body, /\*\*🔴 blocker\*\*/);
-  assert.match(body, /`Gate-Integrität` \+ `Spec-Treue`/);
-  assert.match(body, /von major erhöht/);
+  assert.match(body, /`Gate integrity` \+ `Spec fidelity`/);
+  assert.match(body, /raised from major/);
   assert.match(body, /> `@Disabled\("flaky"\)`/);
   assert.match(body, /> `assertTrue\(true\);`/);
-  assert.match(body, /\*\*Auftrag:\*\* Annotation entfernen\./);
-  assert.match(body, /\*\*Auftrag:\*\* Zeitgrenze pruefen\./);
-  assert.match(body, /zwei Blickrichtungen/);
+  assert.match(body, /\*\*Action:\*\* Annotation entfernen\./);
+  assert.match(body, /\*\*Action:\*\* Zeitgrenze pruefen\./);
+  assert.match(body, /Two review perspectives/);
   assert.ok(body.includes(renderMarker({
     id: 'a3f9c1', sev: 'blocker', ev: evidenceHash('@Disabled("flaky")'), analysts: cluster.analysts,
   })));
@@ -158,7 +158,7 @@ test('renderComment bei einem Analysten ohne Eskalations- und Spannungshinweis',
     analysts: ['gate-integrity'], items: [cluster.items[0]] };
   const body = renderComment(single);
   assert.match(body, /\*\*🟠 major\*\*/);
-  assert.doesNotMatch(body, /erhöht/);
+  assert.doesNotMatch(body, /raised/);
   assert.doesNotMatch(body, /Blickrichtungen/);
 });
 
@@ -169,7 +169,7 @@ test('parseEvidence liest das Zitat aus einem gerenderten Kommentar', () => {
 });
 
 test('renderComment weist niedriges Vertrauen aus', () => {
-  const low = { ...cluster, items: [{ ...cluster.items[0], confidence: 'niedrig' }],
+  const low = { ...cluster, items: [{ ...cluster.items[0], confidence: 'low' }],
     analysts: ['gate-integrity'], tension: false, escalated: false };
-  assert.match(renderComment(low), /Vertrauen: niedrig/);
+  assert.match(renderComment(low), /Confidence: low/);
 });

@@ -42,7 +42,7 @@ test('jede gepflanzte Evidenz ueberlebt den echten Validator', () => {
       problem: 'Vom Fixture gepflanzt.',
       evidence: p.evidence,
       fix: 'Vom Fixture gepflanzt.',
-      confidence: 'hoch',
+      confidence: 'high',
     }, { analysts: analystMap, haystacks, knownFiles });
 
     assert.equal(result.ok, true, `"${p.fall}" faellt durch: ${result.reason}`);

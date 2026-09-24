@@ -8,7 +8,7 @@ const base = {
   analystsSkipped: [{ name: 'java-spring', reason: 'kein Pfad im Diff passt auf **/*.java' }],
   analystsFailed: [],
   counts: { blocker: 1, major: 2, minor: 0, info: 0 },
-  rejected: [{ analyst: 'gate-integrity', title: 'Erfunden', reason: 'Evidenz im Bundle nicht auffindbar' }],
+  rejected: [{ analyst: 'gate-integrity', title: 'Erfunden', reason: 'evidence not found in the bundle' }],
   anchorless: [{ file: 'src/A.java', line: 99, severity: 'major', items: [{ title: 'Ausserhalb' }] }],
   capped: [],
   skippedExisting: [],
@@ -32,7 +32,7 @@ test('Bilanz zaehlt Befunde je Severity', () => {
 
 test('verworfene Befunde werden mit Grund gezaehlt, nie still gekappt', () => {
   const s = renderSummary(base);
-  assert.match(s, /Evidenz im Bundle nicht auffindbar/);
+  assert.match(s, /evidence not found in the bundle/);
   assert.match(s, /1/);
 });
 
@@ -44,12 +44,12 @@ test('ankerlose Befunde stehen mit Datei und Zeile in der Bilanz', () => {
 
 test('Kappung nennt die Zahl und den Hinweis zur PR-Groesse', () => {
   const s = renderSummary({ ...base, capped: [{ file: 'a', line: 1, severity: 'minor', items: [{ title: 'x' }] }] });
-  assert.match(s, /zu groß/);
+  assert.match(s, /too large/);
 });
 
 test('fehlende Spec und fehlende Tests werden benannt', () => {
   const s = renderSummary({ ...base, meta: { spec_missing: true, conventions_missing: true, missing_tests: ['src/A.java'] } });
-  assert.match(s, /Spec/);
+  assert.match(s, /spec fidelity/);
   assert.match(s, /CLAUDE\.md/);
   assert.match(s, /src\/A\.java/);
 });
@@ -62,19 +62,19 @@ test('Mehrfachbefunde stehen mit Paaren in der Bilanz', () => {
     ...base,
     overlap: { clusters: 2, escalated: 1, pairs: [{ pair: 'gate-integrity + spec-fidelity', count: 2 }] },
   });
-  assert.match(s, /Mehrfachbefunde/);
+  assert.match(s, /Overlapping findings/);
   assert.match(s, /gate-integrity \+ spec-fidelity/);
   assert.match(s, /2/);
   // Der Satz, der die Zahl lesbar macht -- sonst haelt man haeufige Paare fuer ein
   // Qualitaetssignal statt fuer eine unscharfe Grenze.
-  assert.match(s, /Reviergrenze|Grenze/);
+  assert.match(s, /territory boundary|boundary/);
 });
 
 test('ohne Ueberlappung erscheint der Block nicht', () => {
-  assert.doesNotMatch(renderSummary(base), /Mehrfachbefunde/);
+  assert.doesNotMatch(renderSummary(base), /Overlapping findings/);
   assert.doesNotMatch(
     renderSummary({ ...base, overlap: { clusters: 0, escalated: 0, pairs: [] } }),
-    /Mehrfachbefunde/,
+    /Overlapping findings/,
   );
 });
 
@@ -84,17 +84,17 @@ test('eine gekappte Nachbarschaft steht in der Bilanz, nicht nur in meta.json', 
   // dann keine Aussage ueber das Verzeichnis, sondern ueber acht Dateien daraus. Wer das
   // nicht erfaehrt, liest die Bilanz vollstaendiger, als sie ist.
   const s = renderSummary({ ...base, meta: { ...base.meta, siblings_truncated: ['src/main/java/app'] } });
-  assert.match(s, /Nachbarschaft/);
+  assert.match(s, /Neighbourhood/);
   assert.match(s, /src\/main\/java\/app/);
-  assert.doesNotMatch(renderSummary(base), /Nachbarschaft/);
+  assert.doesNotMatch(renderSummary(base), /Neighbourhood/);
 });
 
 test('Zweitlauf-Bilanz erscheint nur mit verify-Daten', () => {
-  assert.doesNotMatch(renderSummary(base), /behoben/);
+  assert.doesNotMatch(renderSummary(base), /fixed/);
   const s = renderSummary({ ...base, verify: { resolved: 7, stillOpen: 2, fresh: 1 } });
-  assert.match(s, /7 .*behoben/);
-  assert.match(s, /2 .*offen/);
-  assert.match(s, /1 .*neu/);
+  assert.match(s, /7 .*fixed/);
+  assert.match(s, /2 .*still open/);
+  assert.match(s, /1 .*new/);
 });
 
 test('ein Rueckfall bekommt eine eigene, fette Zeile', () => {
@@ -102,26 +102,26 @@ test('ein Rueckfall bekommt eine eigene, fette Zeile', () => {
   // ist das Interessanteste, was ein Zweitlauf findet. Er darf nicht leiser sein als ein
   // neuer Befund -- und ohne Rueckfaelle steht die Zeile nicht da.
   const ohne = renderSummary({ ...base, verify: { resolved: 1, stillOpen: 0, fresh: 0, regressed: 0 } });
-  assert.doesNotMatch(ohne, /Rückfall/);
+  assert.doesNotMatch(ohne, /Regression/);
   const mit = renderSummary({ ...base, verify: { resolved: 1, stillOpen: 0, fresh: 0, regressed: 2 } });
-  assert.match(mit, /\*\*⚠ Rückfall: 2 Befunde waren/);
-  assert.match(mit, /wieder da/);
+  assert.match(mit, /\*\*⚠ Regression: 2 findings were/);
+  assert.match(mit, /are back/);
   // Aeltere Aufrufer ohne das Feld bleiben lesbar, statt "undefined" zu drucken.
   const alt = renderSummary({ ...base, verify: { resolved: 1, stillOpen: 0, fresh: 0 } });
-  assert.doesNotMatch(alt, /Rückfall|undefined/);
+  assert.doesNotMatch(alt, /Regression|undefined/);
 });
 
 test('Jede Bilanz sagt, dass dies kein Gate ist, und nennt die Version', () => {
   const s = renderSummary(base);
-  assert.match(s, /Signal/);
-  assert.match(s, /kein Gate/);
-  assert.match(s, /Approve/);
+  assert.match(s, /signal/);
+  assert.match(s, /not a gate/);
+  assert.match(s, /approval/);
   assert.match(s, /0\.1\.0/);
 });
 
 test('Der Osmani-Block steht in jeder Bilanz', () => {
   const s = renderSummary(base);
-  assert.match(s, /Was hat sich geändert/);
-  assert.match(s, /Warum ist es sicher/);
-  assert.match(s, /wenn wir uns irren/);
+  assert.match(s, /What changed/);
+  assert.match(s, /Why is it safe/);
+  assert.match(s, /if we are wrong/);
 });

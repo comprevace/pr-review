@@ -43,7 +43,7 @@ const cluster = (id, evidence) => ({
   id, file: 'src/A.java', side: 'RIGHT', line: 10, start_line: null,
   severity: 'major', baseSeverity: 'major', escalated: false, tension: false,
   analysts: ['gi'],
-  items: [{ analyst: 'gi', analystTitle: 'Gate', title: 't', problem: 'p', evidence, fix: 'f', confidence: 'hoch' }],
+  items: [{ analyst: 'gi', analystTitle: 'Gate', title: 't', problem: 'p', evidence, fix: 'f', confidence: 'high' }],
 });
 // evidence steht im Thread, weil der Zweitlauf das Zitat als TEXT braucht: die Frage
 // ist "steht das noch woertlich in der Datei", und ein Hash laesst sich nicht auf

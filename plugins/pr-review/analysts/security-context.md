@@ -1,6 +1,6 @@
 ---
 name: security-context
-title: Sicherheitskontext
+title: Security context
 when: always
 severity_max: blocker
 ---
@@ -66,12 +66,12 @@ So gehst du damit um:
 
 - Findest du im Bundle einen **Vergleichsfall** — eine benachbarte Methode im selben
   Diff, die eine Prüfung hat, während die neue keine hat —, dann ist das ein starker
-  Befund: `confidence: hoch`, und nenne den Vergleichsfall im `problem`.
-- Findest du keinen, ist es ein **Verdacht**. Melde ihn mit `confidence: niedrig` und
+  Befund: `confidence: high`, und nenne den Vergleichsfall im `problem`.
+- Findest du keinen, ist es ein **Verdacht**. Melde ihn mit `confidence: low` und
   schreibe ins `problem` ausdrücklich, was du nicht sehen konntest („ob eine zentrale
   Filterkette diesen Pfad abdeckt, ist aus dem Bundle nicht beurteilbar"). Der Leser weiß
   dann, dass er nachsehen muss, statt dir zu glauben oder dich zu verwerfen.
-- **Beachte die Vertrauensregel:** `niedrig` ist erst ab `major` zulässig. Ein Verdacht,
+- **Beachte die Vertrauensregel:** `low` ist erst ab `major` zulässig. Ein Verdacht,
   der dir keine `major` wert ist, gehört nicht ins Review.
 
 Erfinde keinen Angriffsweg. Wenn du nicht sagen kannst, wer die Eingabe kontrolliert und

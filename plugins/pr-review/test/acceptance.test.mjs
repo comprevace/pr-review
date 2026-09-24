@@ -52,10 +52,10 @@ test('Fall A+B: ein Kommentar, zwei Tags, Severity auf blocker erhoeht', () => {
   assert.equal(cluster.escalated, true);
   // Beide Items tragen dasselbe Zitat -- daran haengt die Identitaet des Threads.
   assert.ok(cluster.items.every((i) => i.evidence === '@Disabled("flaky")'));
-  const body = result.comments.find((c) => c.body.includes('Gate-Integrität')).body;
+  const body = result.comments.find((c) => c.body.includes('Gate integrity')).body;
   assert.match(body, /blocker/);
-  assert.match(body, /`Gate-Integrität` \+ `Spec-Treue`/);
-  assert.match(body, /von major erhöht/);
+  assert.match(body, /`Gate integrity` \+ `Spec fidelity`/);
+  assert.match(body, /raised from major/);
   assert.match(body, /@Disabled\("flaky"\)/);
 });
 
@@ -87,8 +87,8 @@ test('Fall C: Befund ausserhalb der Hunks landet in der Bilanz, nicht am Code', 
 test('Fall D: Befund ohne auffindbare Evidenz wird verworfen UND gezaehlt', () => {
   const result = run();
   assert.ok(!JSON.stringify(result.comments).includes('Erfundener Befund'));
-  assert.match(result.body, /Verworfen: 1/);
-  assert.match(result.body, /Evidenz im Bundle nicht auffindbar/);
+  assert.match(result.body, /Discarded: 1/);
+  assert.match(result.body, /evidence not found in the bundle/);
 });
 
 test('aggregate gibt die verworfenen Befunde heraus, nicht nur in seine eigene Bilanz', () => {
@@ -98,14 +98,14 @@ test('aggregate gibt die verworfenen Befunde heraus, nicht nur in seine eigene B
   const result = run();
   assert.equal(result.rejected.length, 1);
   assert.equal(result.rejected[0].analyst, 'spec-fidelity');
-  assert.equal(result.rejected[0].reason, 'Evidenz im Bundle nicht auffindbar');
+  assert.equal(result.rejected[0].reason, 'evidence not found in the bundle');
 });
 
 test('das Review ist ein Kommentar, niemals ein Approve', () => {
   const result = run();
   assert.equal(result.event, 'COMMENT');
-  assert.match(result.body, /Signal.*kein Gate|kein Gate/s);
-  assert.match(result.body, /kein Approve/);
+  assert.match(result.body, /signal, not a gate/s);
+  assert.match(result.body, /No approval is given/);
 });
 
 test('die Bilanz nennt das Analystenpaar, das sich ins Gehege kam', () => {
@@ -113,7 +113,7 @@ test('die Bilanz nennt das Analystenpaar, das sich ins Gehege kam', () => {
   // KANN, sondern dass aggregate ihn aus den echten Clustern speist. Fall A+B ist der
   // gepflanzte Doppelbefund dieses Bundles.
   const result = run();
-  assert.match(result.body, /Mehrfachbefunde/);
+  assert.match(result.body, /Overlapping findings/);
   assert.match(result.body, /gate-integrity \+ spec-fidelity/);
 });
 

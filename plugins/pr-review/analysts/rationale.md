@@ -1,6 +1,6 @@
 ---
 name: rationale
-title: Begründung
+title: Rationale
 when: always
 severity_max: minor
 ---
@@ -62,9 +62,9 @@ Dein Deckel ist `minor`. Ein fehlendes Warum hält niemanden auf; es kostet erst
 nächsten Leser, und zwar dann richtig. `info` für eine Beobachtung, an der niemand
 scheitern wird.
 
-**Und damit ist `confidence: niedrig` für dich praktisch nicht verfügbar.** Die
-Vertrauensregel verwirft `niedrig` bei `minor` und `info` — also bei allem, was du melden
-kannst. Es gäbe einen Schleichweg: `major` melden, damit `niedrig` durchkommt, und die
+**Und damit ist `confidence: low` für dich praktisch nicht verfügbar.** Die
+Vertrauensregel verwirft `low` bei `minor` und `info` — also bei allem, was du melden
+kannst. Es gäbe einen Schleichweg: `major` melden, damit `low` durchkommt, und die
 Deckelung macht daraus wieder `minor`.
 
 **Geh diesen Weg nicht.** Er wäre eine Severity-Lüge: du behauptest ein Gewicht, das du

@@ -1,6 +1,6 @@
 ---
 name: workflow-ci
-title: CI-Sicherheit
+title: CI safety
 when: paths
 paths: [".github/workflows/**", ".github/actions/**", "**/action.yml", "**/action.yaml"]
 severity_max: blocker
@@ -70,8 +70,8 @@ Workflow, die Repo-Einstellungen und die Runner-Konfiguration liegen nicht im Bu
 - Ein zu weites `permissions` in einer geänderten Datei ist trotzdem ein Befund: ein
   aufrufender Workflow kann Rechte nur **einschränken**, nie erweitern.
 - Ob `secrets: inherit` tatsächlich zu viel weitergibt, hängt am Aufrufer. Kannst du das
-  nicht sehen, melde mit `confidence: niedrig` und schreib hin, was du nicht prüfen
-  konntest. Die Vertrauensregel gilt: `niedrig` erst ab `major`.
+  nicht sehen, melde mit `confidence: low` und schreib hin, was du nicht prüfen
+  konntest. Die Vertrauensregel gilt: `low` erst ab `major`.
 
 ### Severity
 

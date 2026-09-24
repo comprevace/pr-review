@@ -125,7 +125,7 @@ export function makeBundleA(dir) {
       problem: 'Der Test ist abgeschaltet, ohne dass eine andere Pruefung die Zeitgrenze absichert.',
       evidence: '@Disabled("flaky")',
       fix: 'Entferne @Disabled und injiziere einen Zeitgeber statt Instant.now().',
-      confidence: 'hoch',
+      confidence: 'high',
     },
     {
       file: 'src/B.java', line: 17, side: 'RIGHT', severity: 'major',
@@ -133,7 +133,7 @@ export function makeBundleA(dir) {
       problem: 'Der Legacy-Pfad wird nicht mehr erreicht, bleibt aber im Code.',
       evidence: '// legacy fallback',
       fix: 'Entferne den toten Zweig.',
-      confidence: 'hoch',
+      confidence: 'high',
     },
   ], null, 2));
 
@@ -148,7 +148,7 @@ export function makeBundleA(dir) {
       problem: 'Der stillgelegte Test war die einzige Absicherung von Akzeptanzkriterium 1.',
       evidence: '@Disabled("flaky")',
       fix: 'Pruefe, dass eine Session aelter als 30 Minuten abgewiesen wird.',
-      confidence: 'hoch',
+      confidence: 'high',
     },
     {
       // Fall E: zwei Zeilen neben Fall A, aber ein anderes Zitat. Unter der alten
@@ -158,7 +158,7 @@ export function makeBundleA(dir) {
       problem: 'Die Assertion ist wahr, unabhaengig vom Verhalten des Codes.',
       evidence: 'assertTrue(true);',
       fix: 'Pruefe das Ergebnis von handle() statt einer Konstanten.',
-      confidence: 'hoch',
+      confidence: 'high',
     },
     {
       file: 'src/A.java', line: 10, side: 'RIGHT', severity: 'major',
@@ -166,7 +166,7 @@ export function makeBundleA(dir) {
       problem: 'Existiert nicht und muss verworfen werden.',
       evidence: 'dieser-text-existiert-im-bundle-nicht',
       fix: 'Sollte nie gepostet werden.',
-      confidence: 'hoch',
+      confidence: 'high',
     },
   ], null, 2));
 

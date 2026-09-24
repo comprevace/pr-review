@@ -1,6 +1,6 @@
 ---
 name: test-substance
-title: Testsubstanz
+title: Test substance
 when: always
 severity_max: major
 ---
@@ -86,9 +86,9 @@ Produktivcode. Niemals eine Zeile aus `tests/`.
 Dein Deckel ist `major`. Höhere Angaben werden gedeckelt; es bringt dir also nichts,
 etwas zum `blocker` zu erklären.
 
-**Achte auf die Vertrauensregel des Kontrakts:** `confidence: niedrig` ist nur ab
+**Achte auf die Vertrauensregel des Kontrakts:** `confidence: low` ist nur ab
 `severity: major` zulässig. Bist du unsicher, ob eine Sache überhaupt ein Problem ist,
-dann melde sie als `major` mit `niedrig` — oder lass sie weg. Als `minor` mit `niedrig`
+dann melde sie als `major` mit `low` — oder lass sie weg. Als `minor` mit `low`
 wird sie verworfen und niemand liest sie.
 
 Und wenn ein Test in Ordnung ist, sag nichts. `[]` ist eine gute Antwort. Deine

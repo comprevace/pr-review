@@ -117,14 +117,14 @@ test('ein echt gebautes Bundle speist die Aggregation', async () => {
       title: 'Fachliche Assertion entfernt',
       problem: 'Die Assertion gegen REJECTED ist ersatzlos entfernt.',
       evidence: 'assertEquals(REJECTED, service.handle(expired));',
-      fix: 'Stelle die Assertion wieder her.', confidence: 'hoch',
+      fix: 'Stelle die Assertion wieder her.', confidence: 'high',
     },
     {
       file: TEST_PATH, line: 5, side: 'RIGHT', severity: 'major',
       title: 'Tautologie statt Pruefung',
       problem: 'assertTrue(true) kann nicht fehlschlagen.',
       evidence: 'assertTrue(true);',
-      fix: 'Ersetze die Tautologie durch eine fachliche Assertion.', confidence: 'hoch',
+      fix: 'Ersetze die Tautologie durch eine fachliche Assertion.', confidence: 'high',
     },
   ], null, 2));
   writeFileSync(join(dir, 'findings', 'test-substance.json'), JSON.stringify([
@@ -133,14 +133,14 @@ test('ein echt gebautes Bundle speist die Aggregation', async () => {
       title: 'Test prueft nichts mehr',
       problem: 'Keine Aenderung am Produktivcode macht diesen Test rot.',
       evidence: 'assertTrue(true);',
-      fix: 'Pruefe das Verhalten von handle() fuer abgelaufene Auftraege.', confidence: 'hoch',
+      fix: 'Pruefe das Verhalten von handle() fuer abgelaufene Auftraege.', confidence: 'high',
     },
     {
       file: SERVICE_PATH, line: 7, side: 'RIGHT', severity: 'major',
       title: 'Erfundene Evidenz',
       problem: 'Dieses Zitat steht nirgends im Bundle.',
       evidence: 'this.cache = new WeakHashMap<>();',
-      fix: 'Darf nie gepostet werden.', confidence: 'hoch',
+      fix: 'Darf nie gepostet werden.', confidence: 'high',
     },
   ], null, 2));
 
@@ -173,9 +173,9 @@ test('ein echt gebautes Bundle speist die Aggregation', async () => {
   // Beide haben die Stelle unabhaengig als major eingeordnet: die Konkordanz-Regel
   // muss auf einem echt gebauten Bundle genauso erhoehen wie auf dem Fixture.
   assert.match(merged.body, /sev=blocker/);
-  assert.match(merged.body, /erhöht/);
+  assert.match(merged.body, /raised/);
 
-  assert.match(payload.body, /Verworfen: 1/);
-  assert.match(payload.body, /Evidenz im Bundle nicht auffindbar/);
-  assert.match(payload.body, /nicht gestartet — consistency/);
+  assert.match(payload.body, /Discarded: 1/);
+  assert.match(payload.body, /evidence not found in the bundle/);
+  assert.match(payload.body, /not started — consistency/);
 });

@@ -1,6 +1,6 @@
 ---
 name: gate-integrity
-title: Gate-Integrität
+title: Gate integrity
 when: always
 severity_max: blocker
 ---

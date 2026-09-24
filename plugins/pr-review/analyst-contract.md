@@ -49,6 +49,22 @@ Aufmerksamkeit des Lesers.
 
 **Keine Stil-Nitpicks.** Keine Vorschläge der Form „man könnte auch". Kein Lob.
 
+## Die Sprache deiner Ausgabe
+
+**Englisch, ohne Ausnahme.** `title`, `problem` und `fix` sind Englisch — sie landen
+wörtlich als Kommentar im Pull Request und werden von Menschen und Coding-Agents
+gelesen, die Englisch erwarten.
+
+Dieses Dokument, deine Blickrichtung und dein Auftrag sind auf Deutsch verfasst. **Das
+ist kein Hinweis auf die Sprache deiner Befunde.** Die Anweisung ist die eine Sache,
+die Ausgabe die andere; ein deutscher Befund gilt als Mangel und nicht als Stilfrage.
+
+Write every finding in English: `title`, `problem` and `fix`.
+
+Die Enum-Werte sind davon nicht betroffen, weil sie ohnehin schon Englisch sind:
+`severity` ist `info` · `minor` · `major` · `blocker`, `confidence` ist `high` ·
+`medium` · `low`. Ein deutscher Wert dort wird maschinell verworfen.
+
 ## Was du zurückgibst
 
 Schreibe **eine JSON-Datei** nach `<bundle>/findings/<dein-name>.json`. Inhalt ist
@@ -62,11 +78,11 @@ ein Array von Befunden — auch bei genau einem Befund, auch bei keinem.
     "start_line": 82,
     "side": "RIGHT",
     "severity": "major",
-    "title": "Test stillgelegt ohne Ersatzprüfung",
-    "problem": "Ein Satz bis kurzer Absatz: was ist falsch und warum ist das schlimm.",
+    "title": "Test disabled with no replacement check",
+    "problem": "One sentence to a short paragraph, in English: what is wrong and why it matters.",
     "evidence": "@Disabled(\"flaky\")",
-    "fix": "Konkreter Handlungsauftrag im Imperativ.",
-    "confidence": "hoch"
+    "fix": "A concrete instruction in the imperative, in English.",
+    "confidence": "high"
   }
 ]
 ```
@@ -85,11 +101,11 @@ misstrauisch gegen die echten.
 | `start_line` | Nur wenn der Befund einen Bereich betrifft. Muss ≤ `line` sein. Optional |
 | `side` | `RIGHT` (Standard) oder `LEFT` für entfernte Zeilen. Optional |
 | `severity` | `info`, `minor`, `major`, `blocker`. Siehe Leiter unten. Pflicht |
-| `title` | Maximal etwa 60 Zeichen, benennt die Sache, nicht die Lösung. Pflicht |
-| `problem` | Was ist falsch **und warum**. Kein Auftrag hier. Pflicht |
+| `title` | Maximal etwa 60 Zeichen, benennt die Sache, nicht die Lösung. **Englisch.** Pflicht |
+| `problem` | Was ist falsch **und warum**. Kein Auftrag hier. **Englisch.** Pflicht |
 | `evidence` | **Einzeilig, maximal 200 Zeichen, wörtlich aus der Datei, die du in `file` nennst.** Siehe unten. Pflicht |
-| `fix` | Handlungsauftrag im Imperativ. Siehe unten. Pflicht |
-| `confidence` | `hoch`, `mittel`, `niedrig`. Ohne Angabe gilt `mittel`. Siehe unten |
+| `fix` | Handlungsauftrag im Imperativ. **Englisch.** Siehe unten. Pflicht |
+| `confidence` | `high`, `medium`, `low`. Ohne Angabe gilt `medium`. Siehe unten |
 
 Ein Befund wird **verworfen**, wenn ein Pflichtfeld fehlt oder leer ist, die Datei
 nicht im Diff steht, `line` keine positive Ganzzahl ist, `start_line` hinter `line`
@@ -100,14 +116,14 @@ Namen in der Bilanz gezählt.
 
 ### Vertrauen — eine Regel, die man kennen muss
 
-**`confidence: niedrig` ist bei `severity: minor` und `info` unzulässig und wird
+**`confidence: low` ist bei `severity: minor` und `info` unzulässig und wird
 verworfen.** Der Gedanke dahinter: eine geringfügige Beobachtung, bei der du dir
 zusätzlich unsicher bist, kostet den Leser mehr Aufmerksamkeit als sie wert ist.
 
 Praktisch heißt das: Bist du unsicher, ob eine Sache überhaupt ein Problem ist, dann
-melde sie **nicht** als `minor` mit `niedrig` — das kommt nirgends an. Entweder du
-hältst sie für wichtig genug, dann `major` (dort ist `niedrig` erlaubt und wird
-sichtbar ausgewiesen), oder du lässt sie weg. Bei `blocker` und `major` ist `niedrig`
+melde sie **nicht** als `minor` mit `low` — das kommt nirgends an. Entweder du
+hältst sie für wichtig genug, dann `major` (dort ist `low` erlaubt und wird
+sichtbar ausgewiesen), oder du lässt sie weg. Bei `blocker` und `major` ist `low`
 ausdrücklich in Ordnung: ein schwerwiegender Verdacht ist auch unsicher noch
 mitteilungswürdig.
 
@@ -161,9 +177,9 @@ Den Befund liest ein Coding-Agent, der ihn abarbeiten soll. Also:
 - **Schlecht:** „Verbessere die Testqualität." — nicht ausführbar.
 
 Wenn du den Fix nicht konkret benennen kannst, ist das ein Zeichen, dass du das
-Problem noch nicht verstanden hast. Dann `confidence: niedrig` und benenne im
+Problem noch nicht verstanden hast. Dann `confidence: low` und benenne im
 `problem`, was du nicht beurteilen konntest — **aber beachte die Vertrauensregel
-oben**: mit `niedrig` muss die Severity mindestens `major` sein, sonst wird der Befund
+oben**: mit `low` muss die Severity mindestens `major` sein, sonst wird der Befund
 verworfen und niemand liest ihn.
 
 ### Severity-Leiter

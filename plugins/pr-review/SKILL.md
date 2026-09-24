@@ -18,6 +18,11 @@ Erlaubte Formen: `55` · `#55` · `55 --repo owner/name` · `55 --freeze` ·
 - Du liest den Diff **nicht selbst** in deinen Kontext. Die CLI baut das Bundle, die
   Subagenten lesen es. Du orchestrierst.
 - Du erfindest keine Befunde und schreibst keine Analysten-Findings selbst.
+- **Was am Pull Request landet, ist englisch.** Befundtexte, Bilanz und
+  Inline-Kommentare — unabhängig davon, in welcher Sprache dieses Dokument, die
+  Analysten oder der Aufrufer sprechen. Diese Anweisungen sind auf Deutsch; die
+  Ausgabe ist es nicht. Die Regel steht auch im Analysten-Kontrakt und in der
+  Auftragszeile aus Phase 2, weil ein Subagent nur diese beiden liest.
 
 ## Phase 0 — Aufsetzen
 
@@ -81,6 +86,7 @@ Lies zuerst <bundle-pfad>/analyst-contract.md, dann <bundle-pfad>/analysts/<anal
 Beide zusammen sind dein Auftrag.
 Schreibe deine Befunde nach <bundle-pfad>/findings/<analyst-name>.json
 Lies ausschliesslich innerhalb des Bundle-Verzeichnisses.
+Write every finding in English: title, problem and fix.
 ```
 
 Warum Pfade statt Inhalte: Kontrakt und Blickrichtung sind zusammen ~4000 Tokens.

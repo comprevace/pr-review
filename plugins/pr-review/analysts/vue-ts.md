@@ -1,6 +1,6 @@
 ---
 name: vue-ts
-title: Vue-Geläufigkeit
+title: Vue idiom
 when: paths
 paths: ["**/*.vue", "**/*.ts"]
 severity_max: major
@@ -79,12 +79,12 @@ eingesetzte Version gar nicht mehr hat.
 
 Daraus folgt:
 
-- **Version und Abhängigkeit im Manifest belegt** → `confidence: hoch`, nenne beides im
+- **Version und Abhängigkeit im Manifest belegt** → `confidence: high`, nenne beides im
   `problem`.
-- **Manifest fehlt, oder die Version ist daraus nicht ablesbar** → `confidence: niedrig`
+- **Manifest fehlt, oder die Version ist daraus nicht ablesbar** → `confidence: low`
   und ausdrücklich hinschreiben, was du nicht bestätigen konntest. Empfiehl das Mittel als
   zu prüfende Möglichkeit.
-- **Beachte die Vertrauensregel:** `niedrig` ist erst ab `major` zulässig. Weniger wert?
+- **Beachte die Vertrauensregel:** `low` ist erst ab `major` zulässig. Weniger wert?
   Dann weglassen.
 
 Zeigt `package.json` gar kein Vue, ist dieser Diff kein Vue-Code — dann ist `[]` die
